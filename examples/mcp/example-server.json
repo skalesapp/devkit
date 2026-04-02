@@ -1,0 +1,30 @@
+[
+  {
+    "name": "filesystem",
+    "type": "stdio",
+    "enabled": true,
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+    "env": {}
+  },
+  {
+    "name": "github",
+    "type": "stdio",
+    "enabled": false,
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-github"],
+    "env": {
+      "GITHUB_PERSONAL_ACCESS_TOKEN": "your-github-token"
+    }
+  },
+  {
+    "name": "notion",
+    "type": "stdio",
+    "enabled": false,
+    "command": "npx",
+    "args": ["-y", "@notionhq/notion-mcp-server"],
+    "env": {
+      "NOTION_API_KEY": "your-notion-api-key"
+    }
+  }
+]
