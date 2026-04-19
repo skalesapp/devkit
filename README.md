@@ -1,6 +1,17 @@
 # Skales DevKit
 
-Developer tools, documentation, and examples for building with [Skales](https://skales.app) — the local-first AI desktop agent.
+Developer tools, documentation, and examples for building with [Skales](https://skales.app), the local-first AI desktop agent.
+
+Compatible with Skales Desktop **v10.0.3+** · DevKit v0.2.0 · Node.js 18+ · MIT License
+
+## What's New in v0.2.0
+
+- **CLI MCP Commands** — list, test, add, remove, and inspect logs for MCP servers from the terminal
+- **CLI Scheduled Tasks** — manage cron jobs via `skales cron` subcommands
+- **License changed to MIT** — full freedom for commercial integrations and forks
+- **Desktop compatibility pinned** — v10.0.3 and later
+- **API reference expanded** — MCP, DevKit status, DevKit docs, and Scheduled Task control endpoints documented
+- **CLI versioned independently** — `cli/package.json` added
 
 ## What's Inside
 
@@ -36,7 +47,7 @@ Add a `devkit.json` configuration file:
 ```json
 {
   "enabled": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "api": {
     "enabled": true,
     "token": "your-secret-token"
@@ -63,6 +74,10 @@ node skales.js status          # System status
 node skales.js memory          # Browse memories
 node skales.js sessions        # List chat sessions
 node skales.js migrate --from hermes   # Import from Hermes
+node skales.js mcp                     # List configured MCP servers
+node skales.js mcp test filesystem     # Test an MCP server connection
+node skales.js cron                    # List scheduled tasks
+node skales.js cron add daily "0 9 * * *" "Summarize yesterday's activity"
 ```
 
 ## Agent Skills (SKILL.md)
@@ -116,6 +131,8 @@ Import in Skales: **Settings → Agent Skills → Import** → paste a GitHub UR
 
 ## License
 
-BSL-1.1 (Business Source License) — Free for personal and educational use. See [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE) for the full text.
+
+Skales Desktop itself is BSL-1.1 (converts to Apache 2.0 in 2030). The DevKit is MIT so integrations, forks, and commercial work built on top have maximum freedom.
 
 Built by [Mario Simic](https://github.com/skalesapp), Vienna.

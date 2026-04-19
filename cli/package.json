@@ -1,0 +1,20 @@
+{
+  "name": "@skalesapp/devkit-cli",
+  "version": "0.2.0",
+  "description": "Standalone CLI for Skales. Zero dependencies.",
+  "main": "skales.js",
+  "bin": {
+    "skales": "./skales.js"
+  },
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "author": "Mario Simic <mario@skales.app>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skalesapp/devkit.git",
+    "directory": "cli"
+  }
+}

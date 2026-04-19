@@ -121,14 +121,14 @@ curl -X POST http://localhost:3000/api/cli/status \
 ```json
 {
   "app": "Skales",
-  "version": "1.0.0",
+  "version": "10.0.3",
   "provider": "anthropic",
   "model": "claude-opus",
   "memory_count": 0,
   "session_count": 0,
   "tools_count": 8,
   "uptime_ms": 45000,
-  "devkit_version": "1.0.0"
+  "devkit_version": "0.2.0"
 }
 ```
 

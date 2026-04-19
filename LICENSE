@@ -1,38 +1,21 @@
-Business Source License 1.1
+MIT License
 
-Licensor: Mario Simic / Skales
+Copyright (c) 2026 Mario Simic
 
-Licensed Work: Skales DevKit v0.1.0
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-The Licensed Work is (c) 2026 Mario Simic / Skales
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-Change Date: 2030-04-01
-
-Change License: Apache License, Version 2.0
-
-Additional Use Grant: You may use the Licensed Work for personal, educational, and internal business purposes.
-
-Terms
-
-The Licensor hereby grants you the right to copy, modify, create derivative works, and distribute copies of the Licensed Work, solely for the following purposes:
-
-1. Personal use
-2. Educational use
-3. Internal business use
-4. Contributions to the open source project
-
-and subject to the following conditions:
-
-1. You must give any other recipients of the Licensed Work a copy of this License; and
-
-2. You must cause any modified files to carry prominent notices stating that You changed the files; and
-
-3. You must retain, in the source code of any derivative works that You distribute, all copyright, patent, trademark, and attribution notices from the source code of the Licensed Work, excluding those notices that do not pertain to any part of the derivative works; and
-
-4. For any distribution of the Licensed Work or any derivative works thereof in source code form, You must provide recipients with a means of obtaining a copy of this License and any applicable Change License.
-
-The Licensed Work is provided on an "AS IS" basis. Licensor offers the Licensed Work AS-IS and AS-AVAILABLE, and makes no representations or warranties of any kind concerning the Licensed Work, whether express, implied, statutory or otherwise. This includes, without limitation, any warranties of title, merchantability, fitness for a particular purpose, non-infringement, absence of latent or other defects, accuracy, or the presence or absence of errors, whether or not discoverable.
-
-Licensor shall not be liable to any party for any direct, indirect, special, incidental, punitive, or consequential damages, however they arise (including, without limitation, any loss of data or revenue or profits or consequential damages) even if Licensor has been advised of the possibility of such damages.
-
-On the date that the Licensed Work first becomes available under a Change License, the change will be effective, and the Licensed Work will thereafter be available under both the Change License and this License until the end of the Additional Use Grant period.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -1,8 +1,8 @@
 {
   "name": "@skalesapp/devkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Developer tools, documentation, and examples for Skales",
-  "license": "BSL-1.1",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/skalesapp/devkit"

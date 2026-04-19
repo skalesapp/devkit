@@ -13,6 +13,9 @@
  *   node skales.js memory                      List memories
  *   node skales.js sessions                    List sessions
  *   node skales.js migrate --from <source>     Import from another agent
+ *   node skales.js mcp [subcommand]            Manage MCP servers
+ *   node skales.js cron [subcommand]           Manage scheduled tasks
+ *   node skales.js --version                   Print CLI version
  *
  * Requires: Node.js 18+ (uses fetch, built-in modules only)
  * Auth: Reads token from ../devkit.json
@@ -46,6 +49,7 @@ const C = {
 
 // ─── Config ─────────────────────────────────────────────────
 
+const CLI_VERSION = '0.2.0';
 const DEVKIT_CONFIG_PATH = path.join(__dirname, '..', 'devkit.json');
 const BASE_URL = process.env.SKALES_URL || 'http://localhost:3000';
 
@@ -59,8 +63,11 @@ function loadConfig() {
     }
 }
 
-const config = loadConfig();
-const TOKEN = config.api?.token || '';
+// Commands that do not need config or a running Skales instance
+const CONFIG_FREE_COMMANDS = new Set(['--version', '-v', 'help', '--help', '-h']);
+const _earlyCommand = (process.argv[2] || '');
+const config = CONFIG_FREE_COMMANDS.has(_earlyCommand) ? {} : loadConfig();
+const TOKEN = (config && config.api && config.api.token) || '';
 
 // ─── HTTP Helpers (Node.js built-in only) ───────────────────
 
@@ -677,6 +684,306 @@ async function migrateOpenClaw(homeDir, skalesDataDir, dryRun) {
     console.log(`  ${C.dim}Source files NOT deleted.${C.reset}\n`);
 }
 
+// ─── MCP Commands ───────────────────────────────────────────
+
+function printMcpUsage() {
+    console.log(`\n${C.bold}${C.cyan}  MCP (Model Context Protocol)${C.reset}\n`);
+    console.log(`  ${C.bold}Usage:${C.reset}`);
+    console.log(`    skales mcp                        ${C.dim}List configured MCP servers${C.reset}`);
+    console.log(`    skales mcp list                   ${C.dim}Same as above${C.reset}`);
+    console.log(`    skales mcp test <name>            ${C.dim}Live connection check${C.reset}`);
+    console.log(`    skales mcp add <config.json>      ${C.dim}Add server from JSON file${C.reset}`);
+    console.log(`    skales mcp remove <name>          ${C.dim}Remove an MCP server${C.reset}`);
+    console.log(`    skales mcp logs <name> [--lines N] ${C.dim}Show recent server logs${C.reset}`);
+    console.log();
+}
+
+function mcpUnavailable() {
+    console.error(`${C.red}  MCP endpoints not yet available in this Skales Desktop version.${C.reset}`);
+    console.error(`${C.dim}  Requires v10.0.3 or later with MCP management backend.${C.reset}\n`);
+}
+
+async function cmdMcp(args) {
+    const sub = args[0] || 'list';
+
+    if (sub === 'help' || sub === '--help' || sub === '-h') {
+        printMcpUsage();
+        return;
+    }
+
+    try {
+        if (sub === 'list') {
+            const { status, data } = await request('GET', '/api/cli/mcp');
+            if (status === 404) { mcpUnavailable(); return; }
+            if (status !== 200) {
+                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            const servers = (data && data.servers) || [];
+            console.log(`\n${C.bold}${C.cyan}  MCP Servers (${servers.length})${C.reset}\n`);
+            if (servers.length === 0) {
+                console.log(`  ${C.dim}No MCP servers configured. See docs/mcp-servers.md to add one.${C.reset}\n`);
+                return;
+            }
+            for (const s of servers) {
+                const icon = s.status === 'connected' ? `${C.green}●${C.reset}`
+                    : s.status === 'disabled' ? `${C.gray}○${C.reset}`
+                    : `${C.red}✗${C.reset}`;
+                const tools = typeof s.tools === 'number' ? `${s.tools} tools` : '';
+                console.log(`  ${icon} ${C.bold}${s.name}${C.reset} ${C.dim}(${s.transport || 'stdio'})${C.reset}`);
+                console.log(`    ${C.dim}status: ${s.status} ${tools ? '| ' + tools : ''} | enabled: ${s.enabled !== false}${C.reset}`);
+            }
+            console.log();
+            return;
+        }
+
+        if (sub === 'test') {
+            const name = args[1];
+            if (!name) {
+                console.error(`${C.red}Usage: skales mcp test <name>${C.reset}\n`);
+                return;
+            }
+            const { status, data } = await request('POST', '/api/cli/mcp/test', { name });
+            if (status === 404) { mcpUnavailable(); return; }
+            if (status !== 200) {
+                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            if (data && data.ok) {
+                console.log(`${C.green}  ✓ ${name}${C.reset} ${C.dim}connected in ${data.latency_ms}ms, ${data.tools} tools${C.reset}\n`);
+            } else {
+                console.error(`${C.red}  ✗ ${name}${C.reset} ${C.dim}${(data && data.error) || 'connection failed'}${C.reset}\n`);
+            }
+            return;
+        }
+
+        if (sub === 'add') {
+            const configFile = args[1];
+            if (!configFile) {
+                console.error(`${C.red}Usage: skales mcp add <config.json>${C.reset}\n`);
+                return;
+            }
+            if (!fs.existsSync(configFile)) {
+                console.error(`${C.red}Error: File not found: ${configFile}${C.reset}\n`);
+                return;
+            }
+            let payload;
+            try {
+                payload = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
+            } catch (err) {
+                console.error(`${C.red}Error: Invalid JSON in ${configFile}: ${err.message}${C.reset}\n`);
+                return;
+            }
+            const { status, data } = await request('POST', '/api/cli/mcp', payload);
+            if (status === 404) { mcpUnavailable(); return; }
+            if (status !== 200 && status !== 201) {
+                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            console.log(`${C.green}  ✓ Added MCP server: ${payload.name || '(unnamed)'}${C.reset}\n`);
+            return;
+        }
+
+        if (sub === 'remove') {
+            const name = args[1];
+            if (!name) {
+                console.error(`${C.red}Usage: skales mcp remove <name>${C.reset}\n`);
+                return;
+            }
+            const { status, data } = await request('DELETE', `/api/cli/mcp/${encodeURIComponent(name)}`);
+            if (status === 404) {
+                // Distinguish "endpoint missing" from "server not found"
+                if (data && typeof data === 'object' && data.error) {
+                    console.error(`${C.red}Error: ${data.error}${C.reset}\n`);
+                } else {
+                    mcpUnavailable();
+                }
+                return;
+            }
+            if (status !== 200) {
+                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            console.log(`${C.green}  ✓ Removed MCP server: ${name}${C.reset}\n`);
+            return;
+        }
+
+        if (sub === 'logs') {
+            const name = args[1];
+            if (!name) {
+                console.error(`${C.red}Usage: skales mcp logs <name> [--lines N]${C.reset}\n`);
+                return;
+            }
+            let lines = 100;
+            for (let i = 2; i < args.length; i++) {
+                if (args[i] === '--lines' && args[i + 1]) {
+                    const n = parseInt(args[++i], 10);
+                    if (!isNaN(n) && n > 0) lines = n;
+                }
+            }
+            const { status, data } = await request('GET', `/api/cli/mcp/${encodeURIComponent(name)}/logs?lines=${lines}`);
+            if (status === 404) { mcpUnavailable(); return; }
+            if (status !== 200) {
+                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            const logLines = (data && data.lines) || [];
+            console.log(`\n${C.bold}${C.cyan}  Logs for ${name} (${logLines.length} lines)${C.reset}\n`);
+            for (const ln of logLines) {
+                const color = ln.stream === 'stderr' ? C.yellow : C.gray;
+                const ts = ln.t ? `${C.dim}${ln.t}${C.reset} ` : '';
+                console.log(`  ${ts}${color}[${ln.stream || 'stdout'}]${C.reset} ${ln.msg || ''}`);
+            }
+            console.log();
+            return;
+        }
+
+        console.error(`${C.red}Unknown mcp subcommand: ${sub}${C.reset}`);
+        printMcpUsage();
+    } catch (err) {
+        console.error(`${C.red}Error: ${err.message}${C.reset}`);
+        console.error(`${C.dim}Is Skales running on ${BASE_URL}?${C.reset}`);
+    }
+}
+
+// ─── Cron Commands ──────────────────────────────────────────
+
+function printCronUsage() {
+    console.log(`\n${C.bold}${C.cyan}  Scheduled Tasks (cron)${C.reset}\n`);
+    console.log(`  ${C.bold}Usage:${C.reset}`);
+    console.log(`    skales cron                               ${C.dim}List scheduled tasks${C.reset}`);
+    console.log(`    skales cron list                          ${C.dim}Same as above${C.reset}`);
+    console.log(`    skales cron add <id> "<schedule>" "<prompt>"  ${C.dim}Add a task${C.reset}`);
+    console.log(`    skales cron remove <id>                   ${C.dim}Delete a task${C.reset}`);
+    console.log(`    skales cron enable <id>                   ${C.dim}Enable a task${C.reset}`);
+    console.log(`    skales cron disable <id>                  ${C.dim}Pause a task${C.reset}`);
+    console.log(`    skales cron run <id>                      ${C.dim}Fire a task immediately${C.reset}`);
+    console.log();
+    console.log(`  ${C.bold}Schedule:${C.reset} 5-field cron (minute hour day month weekday)`);
+    console.log(`  ${C.dim}  "0 9 * * *"      daily at 9am${C.reset}`);
+    console.log(`  ${C.dim}  "*/15 * * * *"   every 15 minutes${C.reset}`);
+    console.log();
+}
+
+function cronUnavailable(detail) {
+    console.error(`${C.red}  Scheduled task endpoint not available in this Skales Desktop version.${C.reset}`);
+    if (detail) console.error(`${C.dim}  ${detail}${C.reset}`);
+    console.error(`${C.dim}  Requires v10.0.3 or later (or v10.1+ for 'run').${C.reset}\n`);
+}
+
+async function cmdCron(args) {
+    const sub = args[0] || 'list';
+
+    if (sub === 'help' || sub === '--help' || sub === '-h') {
+        printCronUsage();
+        return;
+    }
+
+    try {
+        if (sub === 'list') {
+            const { status, data } = await request('GET', '/api/cli/cron');
+            if (status === 404) { cronUnavailable(); return; }
+            if (status !== 200) {
+                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            const tasks = (data && data.tasks) || [];
+            console.log(`\n${C.bold}${C.cyan}  Scheduled Tasks (${tasks.length})${C.reset}\n`);
+            if (tasks.length === 0) {
+                console.log(`  ${C.dim}No scheduled tasks. Use 'skales cron add' to create one.${C.reset}\n`);
+                return;
+            }
+            for (const t of tasks) {
+                const icon = t.enabled === false ? `${C.gray}○${C.reset}` : `${C.green}●${C.reset}`;
+                const nextRun = t.next_run || t.nextRun;
+                const lastRun = t.last_run || t.lastRun;
+                console.log(`  ${icon} ${C.bold}${t.id || t.name}${C.reset} ${C.dim}${t.schedule}${C.reset}`);
+                const body = t.prompt || t.task || t.name || '';
+                if (body) console.log(`    ${C.dim}${String(body).slice(0, 120)}${C.reset}`);
+                if (nextRun) console.log(`    ${C.dim}next: ${nextRun}${C.reset}`);
+                if (lastRun) console.log(`    ${C.dim}last: ${lastRun}${C.reset}`);
+                console.log();
+            }
+            return;
+        }
+
+        if (sub === 'add') {
+            const [id, schedule, prompt] = [args[1], args[2], args.slice(3).join(' ')];
+            if (!id || !schedule || !prompt) {
+                console.error(`${C.red}Usage: skales cron add <id> "<schedule>" "<prompt>"${C.reset}\n`);
+                return;
+            }
+            const { status, data } = await request('POST', '/api/cli/cron', { id, schedule, prompt });
+            if (status === 404) { cronUnavailable(); return; }
+            if (status !== 200 && status !== 201) {
+                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            console.log(`${C.green}  ✓ Added task: ${id}${C.reset} ${C.dim}(${schedule})${C.reset}\n`);
+            return;
+        }
+
+        if (sub === 'remove') {
+            const id = args[1];
+            if (!id) {
+                console.error(`${C.red}Usage: skales cron remove <id>${C.reset}\n`);
+                return;
+            }
+            // Support both path-style and query-style DELETE depending on backend version
+            let res = await request('DELETE', `/api/cli/cron/${encodeURIComponent(id)}`);
+            if (res.status === 404) {
+                res = await request('DELETE', `/api/cli/cron?id=${encodeURIComponent(id)}`);
+            }
+            if (res.status === 404) { cronUnavailable(); return; }
+            if (res.status !== 200) {
+                console.error(`${C.red}Error: ${(res.data && res.data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            console.log(`${C.green}  ✓ Removed task: ${id}${C.reset}\n`);
+            return;
+        }
+
+        if (sub === 'enable' || sub === 'disable') {
+            const id = args[1];
+            if (!id) {
+                console.error(`${C.red}Usage: skales cron ${sub} <id>${C.reset}\n`);
+                return;
+            }
+            const enabled = sub === 'enable';
+            const { status, data } = await request('PATCH', `/api/cli/cron/${encodeURIComponent(id)}`, { enabled });
+            if (status === 404) { cronUnavailable('PATCH /api/cli/cron/{id} not implemented yet.'); return; }
+            if (status !== 200) {
+                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            console.log(`${C.green}  ✓ ${enabled ? 'Enabled' : 'Disabled'} task: ${id}${C.reset}\n`);
+            return;
+        }
+
+        if (sub === 'run') {
+            const id = args[1];
+            if (!id) {
+                console.error(`${C.red}Usage: skales cron run <id>${C.reset}\n`);
+                return;
+            }
+            const { status, data } = await request('POST', `/api/cli/cron/${encodeURIComponent(id)}/run`);
+            if (status === 404) { cronUnavailable('POST /api/cli/cron/{id}/run requires Desktop v10.1+.'); return; }
+            if (status !== 200 && status !== 202) {
+                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            console.log(`${C.green}  ✓ Triggered task: ${id}${C.reset} ${C.dim}${(data && data.status) ? '(' + data.status + ')' : ''}${C.reset}\n`);
+            return;
+        }
+
+        console.error(`${C.red}Unknown cron subcommand: ${sub}${C.reset}`);
+        printCronUsage();
+    } catch (err) {
+        console.error(`${C.red}Error: ${err.message}${C.reset}`);
+        console.error(`${C.dim}Is Skales running on ${BASE_URL}?${C.reset}`);
+    }
+}
+
 // ─── Utilities ──────────────────────────────────────────────
 
 function formatDuration(ms) {
@@ -690,7 +997,7 @@ function formatDuration(ms) {
 
 function printHelp() {
     console.log(`
-${C.bold}${C.cyan}  Skales DevKit CLI${C.reset}
+${C.bold}${C.cyan}  Skales DevKit CLI${C.reset} ${C.dim}v${CLI_VERSION}${C.reset}
 ${C.dim}  ────────────────────────────────────${C.reset}
 
   ${C.bold}Usage:${C.reset}
@@ -705,8 +1012,11 @@ ${C.dim}  ───────────────────────�
     ${C.green}status${C.reset}                            System status
     ${C.green}memory${C.reset}                            List memory items
     ${C.green}sessions${C.reset}                          List chat sessions
+    ${C.green}mcp${C.reset} ${C.dim}[list|test|add|remove|logs]${C.reset}   Manage MCP servers
+    ${C.green}cron${C.reset} ${C.dim}[list|add|remove|enable|disable|run]${C.reset}  Manage scheduled tasks
     ${C.green}migrate${C.reset} --from ${C.dim}<hermes|openclaw>${C.reset}  Import from another agent
     ${C.green}migrate${C.reset} --dry-run                 Preview import without changes
+    ${C.green}--version${C.reset}                         Print CLI version
 
   ${C.bold}Chat Commands (interactive mode):${C.reset}
     ${C.dim}/new${C.reset}      Start fresh session
@@ -749,6 +1059,16 @@ switch (command) {
         break;
     case 'migrate':
         cmdMigrate(args.slice(1));
+        break;
+    case 'mcp':
+        cmdMcp(args.slice(1));
+        break;
+    case 'cron':
+        cmdCron(args.slice(1));
+        break;
+    case '--version':
+    case '-v':
+        console.log(CLI_VERSION);
         break;
     case 'help':
     case '--help':

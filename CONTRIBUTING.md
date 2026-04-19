@@ -34,3 +34,7 @@ We welcome contributions to improve documentation, add example skills, and fix i
 ## Code of Conduct
 
 Be respectful, constructive, and inclusive. We're building tools for everyone.
+
+## License
+
+By contributing, you agree your contributions are licensed under MIT.

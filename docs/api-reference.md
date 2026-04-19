@@ -413,6 +413,54 @@ curl -X DELETE "http://localhost:3000/api/cli/cron?id=task-001" \
 
 ---
 
+### PATCH /api/cli/cron/{id}
+Toggle a scheduled task's enabled state without deleting it.
+
+**Request:**
+```bash
+curl -X PATCH "http://localhost:3000/api/cli/cron/task-001" \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": false}'
+```
+
+**Request Body:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `enabled` | boolean | Yes | `true` to enable, `false` to pause |
+
+**Response:**
+```json
+{
+  "id": "task-001",
+  "enabled": false
+}
+```
+
+---
+
+### POST /api/cli/cron/{id}/run
+Fire a scheduled task immediately, outside its schedule. Useful for testing.
+
+**Request:**
+```bash
+curl -X POST "http://localhost:3000/api/cli/cron/task-001/run" \
+  -H "Authorization: Bearer your-token"
+```
+
+**Response:**
+```json
+{
+  "id": "task-001",
+  "triggered_at": "2026-04-19T18:30:00Z",
+  "status": "queued"
+}
+```
+
+Note: `run` is a forward-looking endpoint targeted for Skales Desktop v10.1+. Older Desktop versions return 404 and the CLI prints a fallback message.
+
+---
+
 ## System Status Endpoints
 
 ### GET /api/cli/status
@@ -428,14 +476,14 @@ curl http://localhost:3000/api/cli/status \
 ```json
 {
   "app": "Skales",
-  "version": "1.0.0",
+  "version": "10.0.3",
   "provider": "anthropic",
   "model": "claude-opus",
   "memory_count": 15,
   "session_count": 3,
   "tools_count": 12,
   "uptime_ms": 3600000,
-  "devkit_version": "1.0.0"
+  "devkit_version": "0.2.0"
 }
 ```
 
@@ -451,6 +499,208 @@ curl http://localhost:3000/api/cli/status \
 | `tools_count` | Number of available tools |
 | `uptime_ms` | Application uptime in milliseconds |
 | `devkit_version` | DevKit version |
+
+---
+
+## DevKit Status
+
+### GET /api/cli/devkit-status
+Returns information about the active DevKit installation: enabled state, version, feature flags, data directory.
+
+**Request:**
+```bash
+curl http://localhost:3000/api/cli/devkit-status \
+  -H "Authorization: Bearer your-token"
+```
+
+**Response:**
+```json
+{
+  "enabled": true,
+  "devkit_version": "0.2.0",
+  "desktop_version": "10.0.3",
+  "features": {
+    "api": true,
+    "cli": true
+  },
+  "data_dir": "/Users/mario/.skales-data/devkit"
+}
+```
+
+**Fields:**
+| Field | Description |
+|-------|-------------|
+| `enabled` | Whether DevKit is active (driven by `devkit.json`) |
+| `devkit_version` | Version from the DevKit `package.json` |
+| `desktop_version` | Running Skales Desktop version |
+| `features` | Per-subsystem toggles from `devkit.json` |
+| `data_dir` | Absolute path to the resolved DevKit data directory |
+
+---
+
+## DevKit Docs
+
+### GET /api/cli/devkit-docs
+Returns the list of bundled documentation files available to the Developer → Docs viewer in the Skales sidebar.
+
+**Request:**
+```bash
+curl http://localhost:3000/api/cli/devkit-docs \
+  -H "Authorization: Bearer your-token"
+```
+
+**Response:**
+```json
+{
+  "docs": [
+    { "slug": "getting-started", "title": "Getting Started", "path": "docs/getting-started.md" },
+    { "slug": "api-reference", "title": "API Reference", "path": "docs/api-reference.md" },
+    { "slug": "agent-skills", "title": "Agent Skills", "path": "docs/agent-skills.md" },
+    { "slug": "mcp-servers", "title": "MCP Servers", "path": "docs/mcp-servers.md" },
+    { "slug": "providers", "title": "Providers", "path": "docs/providers.md" },
+    { "slug": "integrations", "title": "Integrations", "path": "docs/integrations.md" },
+    { "slug": "migration", "title": "Migration", "path": "docs/migration.md" },
+    { "slug": "architecture", "title": "Architecture", "path": "docs/architecture.md" }
+  ]
+}
+```
+
+---
+
+## MCP (Model Context Protocol)
+
+Manage MCP server connections from the CLI. See [mcp-servers.md](./mcp-servers.md) for protocol details, transport types, and server templates.
+
+> **Note:** MCP management endpoints are forward-looking. Older Skales Desktop versions that do not yet implement `/api/cli/mcp*` return 404; the CLI falls back to a clear error message. MCP itself (invoking configured servers) has worked for several releases. These endpoints are the CLI management layer.
+
+### GET /api/cli/mcp
+List currently configured MCP servers with runtime status.
+
+**Request:**
+```bash
+curl http://localhost:3000/api/cli/mcp \
+  -H "Authorization: Bearer your-token"
+```
+
+**Response:**
+```json
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "transport": "stdio",
+      "status": "connected",
+      "tools": 12,
+      "enabled": true
+    },
+    {
+      "name": "github",
+      "transport": "stdio",
+      "status": "disabled",
+      "tools": 0,
+      "enabled": false
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/cli/mcp/test
+Run a live connection check against a configured MCP server.
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/api/cli/mcp/test \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "filesystem"}'
+```
+
+**Response:**
+```json
+{
+  "name": "filesystem",
+  "ok": true,
+  "latency_ms": 42,
+  "tools": 12
+}
+```
+
+On failure the response includes `"ok": false` and an `"error"` field describing the cause.
+
+---
+
+### POST /api/cli/mcp
+Add or upsert an MCP server configuration.
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/api/cli/mcp \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "notion",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@notionhq/notion-mcp-server"],
+    "env": { "NOTION_TOKEN": "secret_xxx" }
+  }'
+```
+
+**Request Body:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Unique server identifier |
+| `transport` | string | Yes | `stdio` or `sse` |
+| `command` | string | stdio only | Executable to launch |
+| `args` | array | No | Arguments passed to `command` |
+| `env` | object | No | Environment variables for the child process |
+| `url` | string | sse only | Endpoint URL for SSE transport |
+| `enabled` | boolean | No | Defaults to `true` |
+
+---
+
+### DELETE /api/cli/mcp/{name}
+Remove an MCP server configuration. The server is stopped if running.
+
+**Request:**
+```bash
+curl -X DELETE "http://localhost:3000/api/cli/mcp/notion" \
+  -H "Authorization: Bearer your-token"
+```
+
+**Response:**
+```json
+{ "success": true, "name": "notion" }
+```
+
+---
+
+### GET /api/cli/mcp/{name}/logs
+Return recent stdout/stderr lines from the server process.
+
+**Request:**
+```bash
+curl "http://localhost:3000/api/cli/mcp/filesystem/logs?lines=100" \
+  -H "Authorization: Bearer your-token"
+```
+
+**Query Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `lines` | number | No | Number of trailing lines to return. Default 100. |
+
+**Response:**
+```json
+{
+  "name": "filesystem",
+  "lines": [
+    { "stream": "stdout", "t": "2026-04-19T18:30:00Z", "msg": "server ready" },
+    { "stream": "stderr", "t": "2026-04-19T18:30:05Z", "msg": "warn: large file" }
+  ]
+}
+```
 
 ---
 
