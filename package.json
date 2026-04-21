@@ -1,0 +1,26 @@
+{
+  "name": "@skalesapp/devkit",
+  "version": "0.2.0",
+  "description": "Developer tools, documentation, and examples for Skales",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skalesapp/devkit"
+  },
+  "homepage": "https://skales.app",
+  "author": "Mario Simic <mario@skales.app>",
+  "keywords": ["skales", "ai", "agent", "devkit", "skills", "mcp"],
+  "bin": {
+    "skales": "./cli/skales.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "cli/",
+    "docs/",
+    "examples/",
+    "LICENSE",
+    "README.md"
+  ]
+}
