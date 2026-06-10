@@ -28,12 +28,9 @@ node --version
 
 ## Enabling Developer Mode
 
-1. Open Skales application
-2. Go to **Settings** (gear icon or menu)
-3. Navigate to **Features** tab
-4. Toggle **Developer Mode** to **ON**
-5. The application will prompt you to enable the DevKit
-6. Accept the prompt and restart Skales
+1. Place the DevKit folder (containing `devkit.json`) in the Skales installation directory (see the install-path table in the README)
+2. Set `"enabled": true` and your token in `devkit.json`
+3. Restart Skales - the DevKit surfaces (Developer Docs, Debug Panel, API Playground) become available
 
 ## Setting Up the DevKit Folder
 
@@ -70,7 +67,7 @@ The `devkit.json` file controls how the DevKit behaves:
 | Setting | Type | Description |
 |---------|------|-------------|
 | `enabled` | boolean | Enable/disable the entire DevKit |
-| `token` | string | Authentication token for API access (generate in Settings → DevKit) |
+| `token` | string | Authentication token for API access (set your own value here; the CLI sends it as a Bearer token) |
 | `features.apiPlayground` | boolean | Enable the interactive API Playground in the UI |
 | `features.debugPanel` | boolean | Enable the Debug Panel for viewing logs and state |
 | `features.docs` | boolean | Enable inline documentation viewer |
@@ -161,8 +158,8 @@ Never commit these directories to version control as they contain sensitive toke
 - **Issue**: API calls return 401 errors
 - **Cause**: Invalid or missing token in devkit.json
 - **Solution**:
-  1. Generate a new token: Settings → DevKit → Generate Token
-  2. Update the `token` field in devkit.json
+  1. Set a new token value in the `token` field of devkit.json
+  2. Use the same token in the CLI (SKALES_TOKEN env or cli config)
   3. Restart Skales
 
 ### CLI Cannot Connect

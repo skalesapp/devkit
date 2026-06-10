@@ -868,7 +868,7 @@ function printCronUsage() {
 function cronUnavailable(detail) {
     console.error(`${C.red}  Scheduled task endpoint not available in this Skales Desktop version.${C.reset}`);
     if (detail) console.error(`${C.dim}  ${detail}${C.reset}`);
-    console.error(`${C.dim}  Requires v10.0.3 or later (or v10.1+ for 'run').${C.reset}\n`);
+    console.error(`${C.dim}  Requires Skales Desktop v10.0.3 or later. 'run' / enable / disable are not supported by Desktop yet (planned).${C.reset}\n`);
 }
 
 async function cmdCron(args) {
@@ -967,7 +967,7 @@ async function cmdCron(args) {
                 return;
             }
             const { status, data } = await request('POST', `/api/cli/cron/${encodeURIComponent(id)}/run`);
-            if (status === 404) { cronUnavailable('POST /api/cli/cron/{id}/run requires Desktop v10.1+.'); return; }
+            if (status === 404) { cronUnavailable('Running a cron job from the CLI is not supported by Skales Desktop yet (planned).'); return; }
             if (status !== 200 && status !== 202) {
                 console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
                 return;

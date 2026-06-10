@@ -39,7 +39,7 @@ Create a `devkit/` folder in your Skales data directory:
 
 | Platform | Path |
 |----------|------|
-| macOS / Linux | `~/.skales-data/devkit/` |
+| macOS / Linux | `<Skales installation folder>/devkit/` |
 | Windows | `%APPDATA%/skales/devkit/` |
 
 Add a `devkit.json` configuration file:
