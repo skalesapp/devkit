@@ -2,14 +2,14 @@
 
 Developer tools, documentation, and examples for building with [Skales](https://skales.app), the local-first AI desktop agent.
 
-Compatible with Skales Desktop **v10.0.3+** · DevKit v0.2.0 · Node.js 18+ · MIT License
+Compatible with Skales Desktop **v10.0.3 - v11.2.7** (v11.2.7 verified) · DevKit v0.2.0 · Node.js 18+ · MIT License
 
 ## What's New in v0.2.0
 
 - **CLI MCP Commands** — list, test, add, remove, and inspect logs for MCP servers from the terminal
 - **CLI Scheduled Tasks** — manage cron jobs via `skales cron` subcommands
 - **License changed to MIT** — full freedom for commercial integrations and forks
-- **Desktop compatibility pinned** — v10.0.3 and later
+- **Desktop compatibility** — v10.0.3 and later, verified through v11.2.7
 - **API reference expanded** — MCP, DevKit status, DevKit docs, and Scheduled Task control endpoints documented
 - **CLI versioned independently** — `cli/package.json` added
 
