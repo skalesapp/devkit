@@ -26,28 +26,25 @@ Compatible with Skales Desktop **v10.0.3 - v11.2.7** (v11.2.7 verified) · DevKi
 
 ## Quick Start
 
-1. Download [Skales](https://skales.app)
-2. Create a `devkit/` folder in your Skales data directory (see below)
-3. Restart Skales — under Settings → Skills, a **DevKit** toggle appears
-4. Enable it. The Developer section appears in the sidebar.
+1. Download [Skales](https://skales.app) (v12.5.2 or later)
+2. Put a `devkit/devkit.json` in your Skales data directory (see below)
+3. Restart Skales. The Developer section appears in the sidebar.
 
 See the [Getting Started Guide](docs/getting-started.md) for detailed setup.
 
 ## Enable DevKit
 
-Create a `devkit/` folder in your Skales data directory:
+Create a `devkit/` folder in your Skales **data directory** and add a `devkit.json`. The data directory is writable, which the app's install folder is not, so this is the one location that works on a normal install.
 
 | Platform | Path |
 |----------|------|
-| macOS / Linux | `<Skales installation folder>/devkit/` |
-| Windows | `%APPDATA%/skales/devkit/` |
-
-Add a `devkit.json` configuration file:
+| macOS / Linux | `~/.skales-data/devkit/devkit.json` |
+| Windows | `%USERPROFILE%\.skales-data\devkit\devkit.json` |
 
 ```json
 {
   "enabled": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "api": {
     "enabled": true,
     "token": "your-secret-token"
@@ -58,7 +55,9 @@ Add a `devkit.json` configuration file:
 }
 ```
 
-Restart Skales. The Developer section appears in the sidebar.
+Pick your own value for `token` and keep it private (it authenticates the CLI). Restart Skales; the Developer section appears in the sidebar.
+
+The CLI reads the same file, so the token matches automatically. You can also pass it as `SKALES_DEVKIT_TOKEN` instead of a file.
 
 ## CLI
 

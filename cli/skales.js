@@ -27,6 +27,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const readline = require('readline');
 
 // ─── ANSI Colors ────────────────────────────────────────────
@@ -49,25 +50,48 @@ const C = {
 
 // ─── Config ─────────────────────────────────────────────────
 
-const CLI_VERSION = '0.2.0';
-const DEVKIT_CONFIG_PATH = path.join(__dirname, '..', 'devkit.json');
+const CLI_VERSION = '0.3.0';
 const BASE_URL = process.env.SKALES_URL || 'http://localhost:3000';
 
+// The writable data dir Skales reads its DevKit config from. This is where the
+// app looks for devkit/devkit.json in a packaged install, so the CLI checks the
+// same place first: point the CLI and the app at one file and the token matches.
+function dataDir() {
+    return process.env.SKALES_DATA_DIR || path.join(os.homedir(), '.skales-data');
+}
+
+// devkit.json search order. SKALES_DEVKIT_CONFIG overrides everything; then the
+// data dir (matches the app); then the repo layout for a dev checkout.
+function configCandidates() {
+    const list = [];
+    if (process.env.SKALES_DEVKIT_CONFIG) list.push(process.env.SKALES_DEVKIT_CONFIG);
+    list.push(path.join(dataDir(), 'devkit', 'devkit.json'));
+    list.push(path.join(__dirname, '..', 'devkit.json'));
+    return list;
+}
+
 function loadConfig() {
-    try {
-        return JSON.parse(fs.readFileSync(DEVKIT_CONFIG_PATH, 'utf-8'));
-    } catch (err) {
-        console.error(`${C.red}Error: Could not read devkit.json at ${DEVKIT_CONFIG_PATH}${C.reset}`);
-        console.error(`${C.dim}Make sure you're running from the devkit/cli/ directory.${C.reset}`);
-        process.exit(1);
+    // SKALES_DEVKIT_TOKEN lets a user or script supply the token with no file at
+    // all (CI, a quick one-off), so a missing devkit.json is not fatal when the
+    // env token is present.
+    for (const p of configCandidates()) {
+        try {
+            if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8'));
+        } catch { /* try the next candidate */ }
     }
+    if (process.env.SKALES_DEVKIT_TOKEN) return { api: { token: process.env.SKALES_DEVKIT_TOKEN } };
+    console.error(`${C.red}Error: no devkit.json found.${C.reset}`);
+    console.error(`${C.dim}Looked in: ${configCandidates().join(', ')}${C.reset}`);
+    console.error(`${C.dim}Put your devkit.json in ${path.join(dataDir(), 'devkit')} (the dir Skales reads),`);
+    console.error(`${C.dim}or set SKALES_DEVKIT_TOKEN=<token>. Enable DevKit in Skales under Settings > Developer.${C.reset}`);
+    process.exit(1);
 }
 
 // Commands that do not need config or a running Skales instance
 const CONFIG_FREE_COMMANDS = new Set(['--version', '-v', 'help', '--help', '-h']);
 const _earlyCommand = (process.argv[2] || '');
 const config = CONFIG_FREE_COMMANDS.has(_earlyCommand) ? {} : loadConfig();
-const TOKEN = (config && config.api && config.api.token) || '';
+const TOKEN = process.env.SKALES_DEVKIT_TOKEN || (config && config.api && config.api.token) || '';
 
 // ─── HTTP Helpers (Node.js built-in only) ───────────────────
 
@@ -1026,10 +1050,15 @@ ${C.dim}  ───────────────────────�
     ${C.dim}/quit${C.reset}     Exit
 
   ${C.bold}Environment:${C.reset}
-    ${C.dim}SKALES_URL${C.reset}   Base URL (default: http://localhost:3000)
+    ${C.dim}SKALES_URL${C.reset}            Base URL (default: http://localhost:3000)
+    ${C.dim}SKALES_DEVKIT_TOKEN${C.reset}   DevKit token (skips the config file)
+    ${C.dim}SKALES_DEVKIT_CONFIG${C.reset}  Path to a specific devkit.json
+    ${C.dim}SKALES_DATA_DIR${C.reset}       Data dir (default: ~/.skales-data)
 
   ${C.bold}Auth:${C.reset}
-    Token is read from ${C.dim}../devkit.json${C.reset}
+    Token from ${C.dim}~/.skales-data/devkit/devkit.json${C.reset} (same file the app reads),
+    then ${C.dim}../devkit.json${C.reset}, or ${C.dim}SKALES_DEVKIT_TOKEN${C.reset}.
+    Enable DevKit in Skales under Settings > Developer.
 `);
 }
 

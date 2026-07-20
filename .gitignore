@@ -238,3 +238,7 @@ playwright/.cache/
 # ---------- Waitlist data (if any) ----------
 waitlist.db
 waitlist.db-journal
+
+# DevKit config carries the API token - never commit it
+devkit.json
+**/devkit.json
