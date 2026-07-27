@@ -125,7 +125,7 @@ curl -X POST http://localhost:3000/api/cli/status \
   "session_count": 0,
   "tools_count": 8,
   "uptime_ms": 45000,
-  "devkit_version": "0.2.0"
+  "devkit_version": "0.3.0"
 }
 ```
 

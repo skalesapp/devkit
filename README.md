@@ -10,6 +10,7 @@ DevKit **v0.3.0** · requires Skales Desktop **v12.5.2 or later** · Node.js 18+
 - **The local API is actually authenticated.** A gate on the internal `/api/cli/*` route accepted any non-empty token. Desktop v12.5.2 closes it — update the app so the CLI authenticates for real.
 - **`SKALES_DEVKIT_TOKEN`** supplies the token with no config file, for scripts and CI. **`SKALES_DEVKIT_CONFIG`** points at a specific `devkit.json`.
 - **A missing config prints where it looked** and how to fix it, instead of a bare error.
+- **Scheduled-task control works.** `PATCH /api/cli/cron/{id}` (pause / resume) and `POST /api/cli/cron/{id}/run` (fire now) have been in the API reference since v0.2.0 and answered 404 on every Desktop version, because neither had been built. They exist as of Desktop v12.5.7.
 
 ## What's Inside
 

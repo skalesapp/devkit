@@ -457,7 +457,7 @@ curl -X POST "http://localhost:3000/api/cli/cron/task-001/run" \
 }
 ```
 
-Note: `run` is a forward-looking endpoint targeted for Skales Desktop v10.1+. Older Desktop versions return 404 and the CLI prints a fallback message.
+Note: this endpoint, and the `PATCH` above, need Skales Desktop **v12.5.7 or later**. Both have been documented here since v0.2.0 and neither had ever been implemented, so every earlier Desktop version answers 404 and the CLI prints a fallback message.
 
 ---
 
@@ -483,7 +483,7 @@ curl http://localhost:3000/api/cli/status \
   "session_count": 3,
   "tools_count": 12,
   "uptime_ms": 3600000,
-  "devkit_version": "0.2.0"
+  "devkit_version": "0.3.0"
 }
 ```
 
@@ -517,7 +517,7 @@ curl http://localhost:3000/api/cli/devkit-status \
 ```json
 {
   "enabled": true,
-  "devkit_version": "0.2.0",
+  "devkit_version": "0.3.0",
   "desktop_version": "10.0.3",
   "features": {
     "api": true,
