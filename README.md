@@ -2,16 +2,14 @@
 
 Developer tools, documentation, and examples for building with [Skales](https://skales.app), the local-first AI desktop agent.
 
-Compatible with Skales Desktop **v10.0.3 - v11.2.7** (v11.2.7 verified) · DevKit v0.2.0 · Node.js 18+ · MIT License
+DevKit **v0.3.0** · requires Skales Desktop **v12.5.2 or later** · Node.js 18+ · MIT License
 
-## What's New in v0.2.0
+## What's New in v0.3.0
 
-- **CLI MCP Commands** — list, test, add, remove, and inspect logs for MCP servers from the terminal
-- **CLI Scheduled Tasks** — manage cron jobs via `skales cron` subcommands
-- **License changed to MIT** — full freedom for commercial integrations and forks
-- **Desktop compatibility** — v10.0.3 and later, verified through v11.2.7
-- **API reference expanded** — MCP, DevKit status, DevKit docs, and Scheduled Task control endpoints documented
-- **CLI versioned independently** — `cli/package.json` added
+- **DevKit works on a normal installed app.** The installer does not ship a `devkit/` folder and its install directory is read-only, so the old "put `devkit.json` in the installation folder" instruction never worked on a shipped app. Desktop v12.5.2 and this CLI both read it from `~/.skales-data/devkit/` instead.
+- **The local API is actually authenticated.** A gate on the internal `/api/cli/*` route accepted any non-empty token. Desktop v12.5.2 closes it — update the app so the CLI authenticates for real.
+- **`SKALES_DEVKIT_TOKEN`** supplies the token with no config file, for scripts and CI. **`SKALES_DEVKIT_CONFIG`** points at a specific `devkit.json`.
+- **A missing config prints where it looked** and how to fix it, instead of a bare error.
 
 ## What's Inside
 
@@ -26,7 +24,7 @@ Compatible with Skales Desktop **v10.0.3 - v11.2.7** (v11.2.7 verified) · DevKi
 
 ## Quick Start
 
-1. Download [Skales](https://skales.app) (v12.5.2 or later)
+1. Download [Skales](https://skales.app) — **v12.5.2 or later** is required
 2. Put a `devkit/devkit.json` in your Skales data directory (see below)
 3. Restart Skales. The Developer section appears in the sidebar.
 
@@ -126,7 +124,7 @@ Import in Skales: **Settings → Agent Skills → Import** → paste a GitHub UR
 
 - [Skales App](https://skales.app)
 - [Skales GitHub](https://github.com/skalesapp)
-- [Discover Feed](https://skales.app/discover)
+- [Discover Feed](https://feed.skales.app)
 
 ## License
 
