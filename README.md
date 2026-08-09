@@ -33,7 +33,7 @@ DevKit **v0.4.0** · requires Skales Desktop **v12.5.2 or later** · verified ag
 
 ## Quick Start
 
-1. Download [Skales](https://skales.app) — **v12.5.2 or later** is required. Scheduled-task pause, resume and run-now need **v12.5.7**.
+1. Download [Skales](https://skales.app). **v12.5.2 or later** is required; scheduled-task pause, resume and run-now need **v12.5.7**.
 2. Put a `devkit/devkit.json` in your Skales data directory (see below)
 3. Restart Skales. The Developer section appears in the sidebar.
 
