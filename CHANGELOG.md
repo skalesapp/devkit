@@ -5,6 +5,27 @@ All notable changes to the Skales DevKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## v0.4.0 - 2026-08-09
+
+Audited against Skales Desktop v12.7.1. Every documented endpoint was checked
+against the routes the app actually registers.
+
+### Added
+
+- `skales mcp start <name>` and `skales mcp stop <name>`. `POST /api/cli/mcp/{name}/start` and `/stop` have been in Desktop since v10.1.0, but no CLI command called them and the API reference did not list them.
+- `GET /api/cli/mcp/{name}` documented, with a note that the response includes the server's `env` block and should be treated as a secret.
+
+### Fixed
+
+- The API reference told you to get your token from "Settings, DevKit, Generate Token". No such button exists. The token is a value you pick and write into `devkit.json` in `~/.skales-data/devkit/`, and the reference now shows the file.
+- The authentication section now names both credentials `/api/cli/*` accepts (the DevKit bearer token, and `x-skales-token` checked against `SKALES_API_TOKEN`), and says why that route sits outside the app's middleware gate.
+- Removed the note calling the MCP management endpoints "forward-looking". They have shipped since Desktop v10.1.0.
+
+### Compatibility
+
+- Requires Skales Desktop v12.5.2 or later. Scheduled-task pause, resume and run-now need v12.5.7. Verified against v12.7.1.
+
+
 ## v0.3.0 - 2026-07-20
 
 Aligned with Skales Desktop v12.5.2. DevKit now works on a normal installed app.

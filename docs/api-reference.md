@@ -15,16 +15,48 @@ export SKALES_URL=http://localhost:5000
 
 ## Authentication
 
-All API endpoints require the `Authorization` header with a Bearer token:
+Send the DevKit token as a Bearer token:
 
 ```
 Authorization: Bearer your-devkit-token
 ```
 
-Generate or retrieve your token from:
-- **Settings** → **DevKit** → **Generate Token** in the Skales application
+There is no "generate token" button in the app. You choose the value yourself
+and write it into `devkit.json`, which lives in the writable data directory:
 
-**Note**: Replace `your-token` with your actual token in all examples below.
+```
+~/.skales-data/devkit/devkit.json      (macOS and Linux)
+%USERPROFILE%\.skales-data\devkit\devkit.json   (Windows)
+```
+
+```json
+{
+  "enabled": true,
+  "api": { "enabled": true, "token": "your-devkit-token" }
+}
+```
+
+The CLI reads the same value from `SKALES_TOKEN` or from its own config. See
+[getting-started.md](./getting-started.md) for the full file.
+
+`/api/cli/*` is deliberately excluded from the app's own middleware gate,
+because an external CLI cannot know the app's `SKALES_API_TOKEN`. The routes
+authenticate themselves instead, and they accept two credentials:
+
+| Header | Who uses it | Checked against |
+|---|---|---|
+| `Authorization: Bearer <devkit token>` | the CLI and your own scripts | `api.token` in `devkit.json` |
+| `x-skales-token: <api token>` | the Skales renderer, and remote access | the `SKALES_API_TOKEN` environment variable |
+
+Both are compared on the server. Until Desktop v12.5.1 the `x-skales-token`
+branch accepted any non-empty value; if you are running anything older than
+that, update before you expose the app on a network.
+
+Every endpoint also requires DevKit to be enabled (`"enabled": true`), otherwise
+it answers `403 DevKit not enabled`.
+
+**Note**: replace `your-devkit-token` with your actual token in all examples
+below.
 
 ## Error Handling
 
@@ -571,7 +603,7 @@ curl http://localhost:3000/api/cli/devkit-docs \
 
 Manage MCP server connections from the CLI. See [mcp-servers.md](./mcp-servers.md) for protocol details, transport types, and server templates.
 
-> **Note:** MCP management endpoints are forward-looking. Older Skales Desktop versions that do not yet implement `/api/cli/mcp*` return 404; the CLI falls back to a clear error message. MCP itself (invoking configured servers) has worked for several releases. These endpoints are the CLI management layer.
+> **Note:** these management endpoints have shipped since Skales Desktop v10.1.0. On anything older they answer 404 and the CLI prints a clear message. Verified against Desktop v12.7.1.
 
 ### GET /api/cli/mcp
 List currently configured MCP servers with runtime status.
@@ -674,6 +706,67 @@ curl -X DELETE "http://localhost:3000/api/cli/mcp/notion" \
 ```json
 { "success": true, "name": "notion" }
 ```
+
+---
+
+### GET /api/cli/mcp/{name}
+Return one server's stored configuration.
+
+```bash
+curl "http://localhost:3000/api/cli/mcp/notion" \
+  -H "Authorization: Bearer your-devkit-token"
+```
+
+**Response:**
+```json
+{
+  "server": {
+    "name": "notion",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@notionhq/notion-mcp-server"],
+    "enabled": true
+  }
+}
+```
+
+> The response includes the server's `env` block, which is where API keys for
+> that server live. Treat it as a secret.
+
+---
+
+### POST /api/cli/mcp/{name}/start
+Start a server and connect it. Populates the connection pool and the tool cache,
+and flips the server's `enabled` flag to true if it was off.
+
+```bash
+curl -X POST "http://localhost:3000/api/cli/mcp/notion/start" \
+  -H "Authorization: Bearer your-devkit-token"
+```
+
+**Response:**
+```json
+{ "success": true, "name": "notion", "toolCount": 14 }
+```
+
+CLI: `skales mcp start notion`
+
+---
+
+### POST /api/cli/mcp/{name}/stop
+Stop a running server and drop its connection.
+
+```bash
+curl -X POST "http://localhost:3000/api/cli/mcp/notion/stop" \
+  -H "Authorization: Bearer your-devkit-token"
+```
+
+**Response:**
+```json
+{ "success": true, "name": "notion" }
+```
+
+CLI: `skales mcp stop notion`
 
 ---
 

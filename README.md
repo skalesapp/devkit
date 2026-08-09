@@ -2,7 +2,15 @@
 
 Developer tools, documentation, and examples for building with [Skales](https://skales.app), the local-first AI desktop agent.
 
-DevKit **v0.3.0** · requires Skales Desktop **v12.5.2 or later** · Node.js 18+ · MIT License
+DevKit **v0.4.0** · requires Skales Desktop **v12.5.2 or later** · verified against **v12.7.1** · Node.js 18+ · MIT License
+
+## What's New in v0.4.0
+
+- **`skales mcp start <name>` and `skales mcp stop <name>`.** Both endpoints have existed in Desktop since v10.1.0; the CLI never called them and the API reference never listed them.
+- **The API reference tells the truth about tokens.** It used to send you to a "Settings, DevKit, Generate Token" button that does not exist. The token is a value you choose and write into `devkit.json`, and the reference now says so, names both credentials `/api/cli/*` accepts, and explains why that route is outside the app's middleware gate.
+- **`GET /api/cli/mcp/{name}` is documented**, including the warning that its response carries the server's `env` block.
+- **The stale "MCP endpoints are forward-looking" note is gone.** They ship since Desktop v10.1.0.
+- **Endpoint audit against Desktop v12.7.1.** Every path in the reference exists in the app, with the methods documented. Nothing in the docs is aspirational any more.
 
 ## What's New in v0.3.0
 
@@ -25,7 +33,7 @@ DevKit **v0.3.0** · requires Skales Desktop **v12.5.2 or later** · Node.js 18+
 
 ## Quick Start
 
-1. Download [Skales](https://skales.app) — **v12.5.2 or later** is required
+1. Download [Skales](https://skales.app) — **v12.5.2 or later** is required. Scheduled-task pause, resume and run-now need **v12.5.7**.
 2. Put a `devkit/devkit.json` in your Skales data directory (see below)
 3. Restart Skales. The Developer section appears in the sidebar.
 

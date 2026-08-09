@@ -50,7 +50,7 @@ const C = {
 
 // ─── Config ─────────────────────────────────────────────────
 
-const CLI_VERSION = '0.3.0';
+const CLI_VERSION = '0.4.0';
 const BASE_URL = process.env.SKALES_URL || 'http://localhost:3000';
 
 // The writable data dir Skales reads its DevKit config from. This is where the
@@ -719,6 +719,8 @@ function printMcpUsage() {
     console.log(`    skales mcp add <config.json>      ${C.dim}Add server from JSON file${C.reset}`);
     console.log(`    skales mcp remove <name>          ${C.dim}Remove an MCP server${C.reset}`);
     console.log(`    skales mcp logs <name> [--lines N] ${C.dim}Show recent server logs${C.reset}`);
+    console.log(`    skales mcp start <name>           ${C.dim}Start a server and connect it${C.reset}`);
+    console.log(`    skales mcp stop <name>            ${C.dim}Stop a running server${C.reset}`);
     console.log();
 }
 
@@ -859,6 +861,33 @@ async function cmdMcp(args) {
                 console.log(`  ${ts}${color}[${ln.stream || 'stdout'}]${C.reset} ${ln.msg || ''}`);
             }
             console.log();
+            return;
+        }
+
+        if (sub === 'start' || sub === 'stop') {
+            const name = args[1];
+            if (!name) {
+                console.error(`${C.red}Usage: skales mcp ${sub} <name>${C.reset}\n`);
+                return;
+            }
+            const { status, data } = await request('POST', `/api/cli/mcp/${encodeURIComponent(name)}/${sub}`);
+            if (status === 404) {
+                // 404 here is ambiguous: either the whole MCP surface is missing
+                // (older Desktop) or this one server name is unknown. The body
+                // says which.
+                if (data && data.error) {
+                    console.error(`${C.red}Error: ${data.error}${C.reset}\n`);
+                } else {
+                    mcpUnavailable();
+                }
+                return;
+            }
+            if (status !== 200) {
+                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}\n`);
+                return;
+            }
+            const tools = (data && typeof data.toolCount === 'number') ? ` ${C.dim}(${data.toolCount} tools)${C.reset}` : '';
+            console.log(`${C.green}  \u2713 ${sub === 'start' ? 'Started' : 'Stopped'} MCP server: ${name}${C.reset}${tools}\n`);
             return;
         }
 
