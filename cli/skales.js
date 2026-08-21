@@ -50,7 +50,7 @@ const C = {
 
 // ─── Config ─────────────────────────────────────────────────
 
-const CLI_VERSION = '0.4.0';
+const CLI_VERSION = '0.5.0';
 const BASE_URL = process.env.SKALES_URL || 'http://localhost:3000';
 
 // The writable data dir Skales reads its DevKit config from. This is where the
@@ -800,13 +800,22 @@ async function cmdMcp(args) {
                 console.error(`${C.red}Error: Invalid JSON in ${configFile}: ${err.message}${C.reset}\n`);
                 return;
             }
-            const { status, data } = await request('POST', '/api/cli/mcp', payload);
-            if (status === 404) { mcpUnavailable(); return; }
-            if (status !== 200 && status !== 201) {
-                console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
-                return;
+            // The route upserts ONE server per call. A file holding an array is
+            // a normal way to keep several definitions together, so send them
+            // one after another instead of refusing the file.
+            const entries = Array.isArray(payload) ? payload
+                : Array.isArray(payload.servers) ? payload.servers
+                : [payload];
+            for (const entry of entries) {
+                const { status, data } = await request('POST', '/api/cli/mcp', entry);
+                if (status === 404) { mcpUnavailable(); return; }
+                if (status !== 200 && status !== 201) {
+                    console.error(`${C.red}Error (${(entry && entry.name) || '(unnamed)'}): ${(data && data.error) || 'Unknown error'}${C.reset}`);
+                    continue;
+                }
+                console.log(`${C.green}  ✓ Added MCP server: ${(entry && entry.name) || '(unnamed)'}${C.reset}`);
             }
-            console.log(`${C.green}  ✓ Added MCP server: ${payload.name || '(unnamed)'}${C.reset}\n`);
+            console.log();
             return;
         }
 
@@ -906,8 +915,9 @@ function printCronUsage() {
     console.log(`  ${C.bold}Usage:${C.reset}`);
     console.log(`    skales cron                               ${C.dim}List scheduled tasks${C.reset}`);
     console.log(`    skales cron list                          ${C.dim}Same as above${C.reset}`);
-    console.log(`    skales cron add <id> "<schedule>" "<prompt>"  ${C.dim}Add a task${C.reset}`);
-    console.log(`    skales cron remove <id>                   ${C.dim}Delete a task${C.reset}`);
+    console.log(`    skales cron add <name> "<schedule>" "<task>"  ${C.dim}Add a task${C.reset}`);
+    console.log(`      ${C.dim}[--agent <id>]                        Run it as a named agent${C.reset}`);
+    console.log(`    skales cron remove <id>                   ${C.dim}Delete a task by its id${C.reset}`);
     console.log(`    skales cron enable <id>                   ${C.dim}Enable a task${C.reset}`);
     console.log(`    skales cron disable <id>                  ${C.dim}Pause a task${C.reset}`);
     console.log(`    skales cron run <id>                      ${C.dim}Fire a task immediately${C.reset}`);
@@ -916,12 +926,15 @@ function printCronUsage() {
     console.log(`  ${C.dim}  "0 9 * * *"      daily at 9am${C.reset}`);
     console.log(`  ${C.dim}  "*/15 * * * *"   every 15 minutes${C.reset}`);
     console.log();
+    console.log(`  ${C.dim}The id is assigned by Skales and printed by 'skales cron add' and 'skales cron'.${C.reset}`);
+    console.log(`  ${C.dim}remove / enable / disable / run all take that id, not the name.${C.reset}`);
+    console.log();
 }
 
 function cronUnavailable(detail) {
     console.error(`${C.red}  Scheduled task endpoint not available in this Skales Desktop version.${C.reset}`);
     if (detail) console.error(`${C.dim}  ${detail}${C.reset}`);
-    console.error(`${C.dim}  Requires Skales Desktop v10.0.3 or later. 'run' / enable / disable are not supported by Desktop yet (planned).${C.reset}\n`);
+    console.error(`${C.dim}  List and add need Skales Desktop v10.0.3 or later; enable / disable / run need v12.5.7 or later.${C.reset}\n`);
 }
 
 async function cmdCron(args) {
@@ -940,7 +953,9 @@ async function cmdCron(args) {
                 console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
                 return;
             }
-            const tasks = (data && data.tasks) || [];
+            // The route answers { jobs, count }. `tasks` is kept as a fallback
+            // for anything that ever answered in that older shape.
+            const tasks = (data && (data.jobs || data.tasks)) || [];
             console.log(`\n${C.bold}${C.cyan}  Scheduled Tasks (${tasks.length})${C.reset}\n`);
             if (tasks.length === 0) {
                 console.log(`  ${C.dim}No scheduled tasks. Use 'skales cron add' to create one.${C.reset}\n`);
@@ -948,31 +963,47 @@ async function cmdCron(args) {
             }
             for (const t of tasks) {
                 const icon = t.enabled === false ? `${C.gray}○${C.reset}` : `${C.green}●${C.reset}`;
-                const nextRun = t.next_run || t.nextRun;
-                const lastRun = t.last_run || t.lastRun;
-                console.log(`  ${icon} ${C.bold}${t.id || t.name}${C.reset} ${C.dim}${t.schedule}${C.reset}`);
-                const body = t.prompt || t.task || t.name || '';
+                const schedule = t.scheduleHuman ? `${t.schedule} ${C.dim}(${t.scheduleHuman})${C.reset}` : t.schedule;
+                console.log(`  ${icon} ${C.bold}${t.name || t.id}${C.reset} ${C.dim}${schedule}${C.reset}`);
+                console.log(`    ${C.dim}id: ${t.id}${t.agent ? ` | agent: ${t.agent}` : ''}${C.reset}`);
+                const body = t.task || t.prompt || '';
                 if (body) console.log(`    ${C.dim}${String(body).slice(0, 120)}${C.reset}`);
-                if (nextRun) console.log(`    ${C.dim}next: ${nextRun}${C.reset}`);
-                if (lastRun) console.log(`    ${C.dim}last: ${lastRun}${C.reset}`);
+                if (t.nextRun) console.log(`    ${C.dim}next: ${formatWhen(t.nextRun)}${C.reset}`);
+                if (t.lastRun) console.log(`    ${C.dim}last: ${formatWhen(t.lastRun)}${C.reset}`);
                 console.log();
             }
             return;
         }
 
         if (sub === 'add') {
-            const [id, schedule, prompt] = [args[1], args[2], args.slice(3).join(' ')];
-            if (!id || !schedule || !prompt) {
-                console.error(`${C.red}Usage: skales cron add <id> "<schedule>" "<prompt>"${C.reset}\n`);
+            // The route takes { name, schedule, task } and optionally
+            // { description, agent }; it answers { success, job } with the id
+            // it assigned. Nothing here is called `id` or `prompt`.
+            const rest = args.slice(1);
+            let agent = null;
+            const positional = [];
+            for (let i = 0; i < rest.length; i++) {
+                if (rest[i] === '--agent' && rest[i + 1]) { agent = rest[++i]; continue; }
+                positional.push(rest[i]);
+            }
+            const [name, schedule] = positional;
+            const task = positional.slice(2).join(' ');
+            if (!name || !schedule || !task) {
+                console.error(`${C.red}Usage: skales cron add <name> "<schedule>" "<task>" [--agent <id>]${C.reset}\n`);
                 return;
             }
-            const { status, data } = await request('POST', '/api/cli/cron', { id, schedule, prompt });
+            const body = { name, schedule, task };
+            if (agent) body.agent = agent;
+            const { status, data } = await request('POST', '/api/cli/cron', body);
             if (status === 404) { cronUnavailable(); return; }
             if (status !== 200 && status !== 201) {
                 console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
                 return;
             }
-            console.log(`${C.green}  ✓ Added task: ${id}${C.reset} ${C.dim}(${schedule})${C.reset}\n`);
+            const job = (data && data.job) || {};
+            console.log(`${C.green}  ✓ Added task: ${name}${C.reset} ${C.dim}(${schedule})${C.reset}`);
+            if (job.id) console.log(`  ${C.dim}id: ${job.id} — use it for remove / enable / disable / run${C.reset}`);
+            console.log();
             return;
         }
 
@@ -982,14 +1013,21 @@ async function cmdCron(args) {
                 console.error(`${C.red}Usage: skales cron remove <id>${C.reset}\n`);
                 return;
             }
-            // Support both path-style and query-style DELETE depending on backend version
+            // /api/cli/cron/{id} carries no DELETE handler, so Next answers 405
+            // for a path-style delete, not 404. Both mean "try the query form",
+            // which is where DELETE actually lives.
             let res = await request('DELETE', `/api/cli/cron/${encodeURIComponent(id)}`);
-            if (res.status === 404) {
+            if (res.status === 404 || res.status === 405) {
                 res = await request('DELETE', `/api/cli/cron?id=${encodeURIComponent(id)}`);
             }
             if (res.status === 404) { cronUnavailable(); return; }
             if (res.status !== 200) {
                 console.error(`${C.red}Error: ${(res.data && res.data.error) || 'Unknown error'}${C.reset}`);
+                return;
+            }
+            // A missing id is a 200 with { success: false }, not an error status.
+            if (res.data && res.data.success === false) {
+                console.error(`${C.red}  No scheduled task with id "${id}". Run 'skales cron' to see the ids.${C.reset}\n`);
                 return;
             }
             console.log(`${C.green}  ✓ Removed task: ${id}${C.reset}\n`);
@@ -1004,7 +1042,13 @@ async function cmdCron(args) {
             }
             const enabled = sub === 'enable';
             const { status, data } = await request('PATCH', `/api/cli/cron/${encodeURIComponent(id)}`, { enabled });
-            if (status === 404) { cronUnavailable('PATCH /api/cli/cron/{id} not implemented yet.'); return; }
+            if (status === 404) {
+                // 404 is ambiguous: an older Desktop without the route, or a
+                // current one telling us this id does not exist. The body says which.
+                if (data && data.error) { console.error(`${C.red}Error: ${data.error}${C.reset}\n`); }
+                else { cronUnavailable('PATCH /api/cli/cron/{id} needs Skales Desktop v12.5.7 or later.'); }
+                return;
+            }
             if (status !== 200) {
                 console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
                 return;
@@ -1020,7 +1064,11 @@ async function cmdCron(args) {
                 return;
             }
             const { status, data } = await request('POST', `/api/cli/cron/${encodeURIComponent(id)}/run`);
-            if (status === 404) { cronUnavailable('Running a cron job from the CLI is not supported by Skales Desktop yet (planned).'); return; }
+            if (status === 404) {
+                if (data && data.error) { console.error(`${C.red}Error: ${data.error}${C.reset}\n`); }
+                else { cronUnavailable('POST /api/cli/cron/{id}/run needs Skales Desktop v12.5.7 or later.'); }
+                return;
+            }
             if (status !== 200 && status !== 202) {
                 console.error(`${C.red}Error: ${(data && data.error) || 'Unknown error'}${C.reset}`);
                 return;
@@ -1038,6 +1086,12 @@ async function cmdCron(args) {
 }
 
 // ─── Utilities ──────────────────────────────────────────────
+
+/** Timestamps arrive either as epoch milliseconds or as an ISO string. */
+function formatWhen(value) {
+    const d = typeof value === 'number' ? new Date(value) : new Date(String(value));
+    return isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+}
 
 function formatDuration(ms) {
     const s = Math.floor(ms / 1000);

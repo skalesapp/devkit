@@ -1,7 +1,6 @@
 ---
-name: Email Assistant
+name: email-assistant
 description: Help draft, categorize, and respond to emails with proper tone and formatting
-version: 1.0.0
 ---
 
 # Email Assistant Skill

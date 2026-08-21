@@ -21,7 +21,7 @@ This document describes the high-level architecture of Skales, including the tec
 - Better IDE support and catching errors at compile time
 
 **Architecture**:
-The Electron app launches a Next.js local server running on `localhost:3000`. The Electron window renders this web application, creating a seamless native experience while leveraging web technologies.
+The Electron app launches a Next.js server on localhost and renders it in a native window. The port is not fixed: Skales walks **3000 through 3009** and binds the first free one, so a second instance moves the whole app, API included. `SKALES_URL` is how external callers follow it.
 
 ```
 ┌─────────────────────────────────┐
@@ -48,27 +48,23 @@ All user data is stored locally in `~/.skales-data/` with no cloud dependency. T
 │   ├── session-001.json
 │   ├── session-002.json
 │   └── ...
-├── memories/                  # Extracted facts and preferences
-│   ├── personality.md
-│   ├── preferences.json
-│   ├── contacts.json
+├── memories/                  # One JSON file per memory, plus its state files
+│   ├── mem_a1b2c3d4e5f6a7b8.json
 │   └── ...
-├── agent-skills/              # Custom skills and tools
+├── agent-skills/              # SKILL.md skills, one folder each
+│   ├── agent-skills-state.json    # which skills are on; absent means all on
 │   ├── research-skill/
 │   │   └── SKILL.md
-│   ├── automation/
-│   │   └── SKILL.md
 │   └── ...
-├── integrations/              # Integration credentials (encrypted)
-│   └── integrations.json
-├── imported/                  # Imported conversations from other tools
-│   ├── chatgpt/
-│   ├── claude/
-│   └── ...
-├── documents/                 # User-uploaded documents and files
-│   └── ...
+├── skills/                    # Executable custom skills, plus manifest.json
+├── agents/                    # Agent definitions and execution records
+├── cron/                      # Scheduled tasks, one JSON file each
+├── mcp-servers.json           # MCP server configuration
+├── workflows.json             # Saved workflow templates
+├── local-models/              # Downloaded on-device models
+├── workspace/                 # Project folders created by Flow and Skales Code
+├── devkit/                    # devkit.json and an optional DEVKIT.md
 └── logs/                      # Application logs
-    └── ...
 ```
 
 **Key Principles**:
@@ -92,7 +88,7 @@ The orchestrator is the core decision engine that processes user messages and co
    ↓
 4. Load available tools (from skills, integrations, MCP)
    ↓
-5. Call orchestrator.ts → agentDecide()
+5. The orchestrator decides: a tool call, or an answer
    ↓
 6. LLM selects provider and generates response
    ↓
@@ -119,13 +115,11 @@ The orchestrator is the core decision engine that processes user messages and co
 - **Loop Control**: Manages multi-turn reasoning until task completion or user intervention
 - **Safety Gating**: Applies safety rules (auto vs. confirm tools)
 
-**Code Location**: `/src/lib/orchestrator.ts`
-
 ---
 
 ## 4. Provider Abstraction Layer
 
-Skales supports 11 different AI providers through a unified abstraction layer.
+Skales supports **26** providers through a unified abstraction layer. See [providers.md](./providers.md) for the full list.
 
 ### Provider Interface
 
@@ -144,8 +138,8 @@ interface Provider {
 
 ### Supported Provider Formats
 
-1. **OpenAI Compatible**:
-   - OpenAI, Groq, Mistral, DeepSeek, Together AI, OpenRouter
+1. **OpenAI Compatible** — the large majority:
+   - OpenAI, OpenRouter, Groq, Mistral, DeepSeek, Together AI, Minimax, Moonshot, GLM, Qwen, Hunyuan, GigaChat, Atlas Cloud, Cloudflare Workers AI, Nvidia NIM, Hugging Face, and every local runtime (Ollama, LM Studio, Skales Local, Unsloth, and the Custom slot)
    - API Format: OpenAI `messages` format
    - Tool Format: OpenAI function calling
 
@@ -167,11 +161,6 @@ interface Provider {
 4. Provider adapter translates tool format to provider's API
 5. Response is translated back to unified format
 
-**Key Adapters**:
-- `openai-adapter.ts` — Converts to/from OpenAI format
-- `anthropic-adapter.ts` — Converts to/from Anthropic format
-- `google-adapter.ts` — Converts to/from Google format
-
 **Benefits**:
 - Switch providers without changing conversation logic
 - Compare models from different providers
@@ -181,44 +170,44 @@ interface Provider {
 
 ## 5. Tool System
 
-Skales includes 60+ built-in tools organized by category, plus extensibility via MCP and custom skills.
+Skales includes **257** built-in tools, plus whatever MCP servers and custom skills add.
 
 ### Tool Organization
 
-**Categories**:
-- **Web**: search, fetch, summarize
-- **Files**: read, write, upload, download
-- **Code**: execute, format, lint
-- **Productivity**: task management, calendar, email
-- **Communication**: Slack, Discord, email, SMS
-- **Smart Home**: Home Assistant device control
-- **Analytics**: data analysis, visualization
+Tools carry a category. As of 12.8.4:
+
+| Category | Tools | Examples |
+|---|---:|---|
+| core | 119 | `analyze_image`, `search_web`, `read_skill`, `create_task` |
+| media | 36 | image, audio and video generation and editing |
+| communication | 29 | email, messaging channels, calendar |
+| system | 22 | processes, system info, notifications |
+| file | 15 | `read_file`, `write_file`, `edit_file`, `append_file` |
+| browser | 12 | real browser control |
+| productivity | 9 | tasks, notes, documents |
+| web | 6 | `fetch_web_page`, `extract_web_text` |
+| social | 6 | posting and reading on connected accounts |
+| automation | 3 | scheduling and workflow triggers |
+
+`GET /api/cli/tools` lists what a given install actually offers, which is the honest answer for any specific machine — add-ons and integrations change it.
 
 ### Safety Levels
 
 Each tool has a safety level:
 
-```typescript
-enum SafetyLevel {
-  AUTO = "auto",              // Execute without asking
-  CONFIRM = "confirm",        // Ask user before executing
-  BLOCKED = "blocked"         // Never execute
-}
-```
+Each tool is `auto`, `confirm` or `manual`.
 
-Examples:
-- **AUTO**: `web_search`, `read_file`, `send_message`
-- **CONFIRM**: `write_file`, `delete_file`, `execute_code`
-- **BLOCKED**: `system_shutdown`, `delete_database` (reserved for future)
+- **auto** — runs without asking: `read_file`, `search_web`, `fetch_web_page`, `extract_web_text`, `search_sessions`, `read_skill`, `list_tasks`, `git_status`, `git_diff`, `ask_user`
+- **confirm** — the user approves first: `write_file`, `append_file`, `edit_file`, `replace_in_file`, `delete_file`, `download_file`, `git_commit`, `git_push`, `test_run`, `deploy_project`
+- **manual** — reserved for actions the agent never starts on its own
 
-### Tool Gating via Skills
+### Tool Gating via Add-Ons
 
-Tools are not directly available—they're bundled in **Skills** (see section 6).
+Tools are gated by **add-ons**, not by skills. An add-on is a surface or an integration you chose to switch on; a capability the assistant simply has — reading files, summarizing, seeing a screenshot — is core and cannot be switched off.
 
-Disabling a skill automatically disables all its tools:
-1. User disables "Email Automation" skill
-2. Tools `send_email`, `read_email` become unavailable
-3. LLM won't suggest them even if they exist
+Switching an add-on off does not merely hide its tools: they are never offered to the model in the first place, so it cannot suggest what it cannot see. The matching sidebar entry and settings section disappear at the same time.
+
+Three further states exist. **Retired** means switched off for good and impossible to re-enable — GitHub, DLNA casting and the playground are retired in 12.8.4. **Parked** means no longer offered to new users: anyone who has it on keeps every tool, setting and route, and only the sidebar entry is gone.
 
 ### MCP-Provided Tools
 
@@ -231,54 +220,51 @@ This prevents naming collisions when multiple MCP servers provide similar functi
 
 ---
 
-## 6. Agent Skills
+## 6. Skills
 
-Skills are portable bundles of capabilities, defined in `SKILL.md` files.
+A skill is instruction text, not a tool bundle. It teaches the agent how to do something with the tools it already has; it does not grant new ones. The surface is the **Custom Skills** page — there is no "Agent Skills" settings section, and `/skills` is the Add-Ons screen, which is a different thing.
 
 ### Skill File Structure
 
 ```
 ~/.skales-data/agent-skills/
+├── agent-skills-state.json   # which skills are on; no file means all on
 └── research-skill/
-    ├── SKILL.md              # Metadata, tools, system prompt
-    ├── tools.json            # Tool definitions
-    └── custom-logic/         # Optional implementation
+    ├── SKILL.md              # frontmatter + instructions
+    ├── scripts/              # optional, read on demand
+    └── references/           # optional, read on demand
 ```
+
+28 skills ship built in, read-only inside the app and gated by the same state file.
 
 ### SKILL.md Format
 
 ```markdown
 ---
-name: "Research Assistant"
-version: "1.0"
-author: "Skales Team"
-description: "Search the web, fetch articles, and summarize findings"
-tools: [web_search, fetch_url, summarize]
-system_prompt: |
-  You are an expert researcher. When asked to research topics...
-enabled: true
+name: research-assistant
+description: Search the web, fetch articles, and summarize findings
 ---
 
 # Research Assistant
 
-This skill enables web research capabilities...
+When asked to research a topic, start with...
 ```
+
+Only `name` and `description` are required, and only a small set of keys is read at all — see [agent-skills.md](./agent-skills.md) for the exact list. There is no `tools`, no `system_prompt` and no `enabled` key in the frontmatter.
 
 ### How Skills Work
 
-1. **Load on Startup**: Skales loads all SKILL.md files from `~/.skales-data/agent-skills/`
-2. **Extract Tools**: System prompt and tool list extracted for each skill
-3. **Inject into Context**: Skill system prompts injected into every conversation
-4. **Enable/Disable**: Users toggle skills in **Settings → Skills**
-5. **Tool Gating**: Disabled skills' tools are unavailable to LLM
+1. **Load**: every SKILL.md under `~/.skales-data/agent-skills/`, plus the built-ins
+2. **Progressive disclosure**: while the combined body length of model-invocable skills stays under about 12,000 characters, all bodies go into the prompt. Above that, the prompt carries a manifest of names and shortened descriptions, plus the full body of any skill the message names by name.
+3. **On demand**: the `read_skill` tool loads one body when the agent decides it needs it
+4. **Enable/Disable**: on the **Custom Skills** page; the state is opt-out, so a fresh install has everything on
+5. **User-invoked skills** never appear in the manifest — they enter only when a human names them
 
 ### Creating Custom Skills
 
-Users can create custom skills by:
-1. Creating a directory in `~/.skales-data/agent-skills/my-skill/`
-2. Writing a SKILL.md file with tool definitions
-3. Restarting Skales or refreshing in UI
-4. Custom tools are now available
+1. Create `~/.skales-data/agent-skills/my-skill/` and write a `SKILL.md`
+2. Or import one on the Custom Skills page: a GitHub URL, a local folder, or pasted text
+3. Or have a model write one, which is validated and test-loaded before it installs
 
 ### Portability
 
@@ -372,42 +358,22 @@ Skales extracts and learns from conversations to build a personalized knowledge 
 
 ### Memory Types
 
-**Personality** (`personality.md`):
-- Communication style preferences
-- Knowledge gaps
-- Emotional preferences
+There is no `personality.md`, no `preferences.json` and no `contacts.json`. Every memory is one JSON file in `~/.skales-data/memories/`, in a single shape:
 
-Example:
-```markdown
-# User Personality
-
-- Prefers concise, direct communication
-- Interested in AI, machine learning, and distributed systems
-- Disprefers passive voice; prefer active voice in responses
-```
-
-**Preferences** (`preferences.json`):
 ```json
 {
-  "timezone": "US/Pacific",
-  "language": "English",
-  "response_length": "concise",
-  "code_style": "TypeScript",
-  "color_theme": "dark"
+  "id": "mem_a1b2c3d4e5f6a7b8",
+  "category": "preference",
+  "content": "Prefers concise, direct answers",
+  "source_conversation_id": "session_1755800000000",
+  "extracted_at": 1755800000000,
+  "relevance_keywords": ["style", "tone"]
 }
 ```
 
-**Contacts** (`contacts.json`):
-```json
-{
-  "alice": {
-    "name": "Alice Smith",
-    "email": "alice@example.com",
-    "role": "Project Manager",
-    "company": "Acme Corp"
-  }
-}
-```
+`category` is a plain string. The ones the app colours are `preference`, `fact`, `action_item`, `contact`, `url`, `location` and `topic`, but any value is stored. `extracted_at` is epoch milliseconds.
+
+Two files in that folder are bookkeeping rather than memories: `_state.json` and `_deleted_blocklist.json`.
 
 ### Memory Injection
 
@@ -495,19 +461,13 @@ Skales automatically checks for and downloads updates.
 5. Or: show update prompt to user
 ```
 
-### Update Channels
-
-- **Stable**: Latest stable release (default)
-- **Beta**: Pre-release versions for testing
-- **Dev**: Development builds (not recommended)
-
-Users configure in **Settings → Updates**.
+Update settings live in **Settings → Updates**.
 
 ### Download Formats
 
 - **macOS**: DMG (disk image)
-- **Windows**: NSIS installer (executable)
-- **Linux**: AppImage (portable executable)
+- **Windows**: NSIS installer
+- **Linux**: AppImage (portable). A `.deb` is published alongside it for Debian, Ubuntu and Mint, where the AppImage falls foul of newer AppArmor policy.
 
 ### Update Page
 
@@ -525,10 +485,7 @@ When an update is available:
 
 ### Rollback
 
-If an update causes issues:
-- Automatic rollback after 5 minutes if app crashes
-- Manual downgrade by reinstalling previous version
-- Data is preserved (stored separately from app code)
+There is no automatic rollback. To go back, reinstall the previous version from the releases page — your data is untouched, because it lives in `~/.skales-data/` and not inside the app.
 
 ---
 
@@ -677,6 +634,6 @@ Developers can extend Skales in several ways:
 1. **MCP Servers**: Add custom tools via MCP protocol
 2. **Custom Skills**: Write SKILL.md to bundle tools and prompts
 3. **Integration Plugins**: Connect to external services
-4. **Themes and UI**: Customize appearance (limited in v1)
+4. **DevKit REST API**: Drive chat, memory, sessions, models, scheduling and MCP from outside the app
 
-See `/docs/extending/` for detailed guides on each.
+Guides: [MCP Servers](./mcp-servers.md), [Custom Skills](./agent-skills.md), [Integrations](./integrations.md), [API Reference](./api-reference.md). [Capabilities](./capabilities.md) maps everything the app does that the DevKit does not yet reach.

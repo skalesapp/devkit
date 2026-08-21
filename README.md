@@ -2,7 +2,17 @@
 
 Developer tools, documentation, and examples for building with [Skales](https://skales.app), the local-first AI desktop agent.
 
-DevKit **v0.4.0** · requires Skales Desktop **v12.5.2 or later** · verified against **v12.7.1** · Node.js 18+ · MIT License
+DevKit **v0.5.0** · requires Skales Desktop **v12.5.2 or later** · verified against **v12.8.4** · Node.js 18+ · MIT License
+
+## What's New in v0.5.0
+
+- **Three broken CLI commands work.** `skales cron` read the wrong key and always reported no tasks; `skales cron add` sent the wrong field names and always answered 400; `skales cron remove` never fell back, because the path form answers 405 rather than 404. All three are fixed against the contract the app actually serves.
+- **The setup guide no longer produces an unreadable config.** It told you to put `token` at the top level of `devkit.json`. The app reads `api.token`, so every call answered 500.
+- **The API reference describes the real payloads.** v0.4.0 verified that every path and method existed. It did not verify what came back — and chat SSE, sessions, memory, cron, `devkit-status` and `devkit-docs` were all documented in shapes the app has never sent.
+- **`mcp-servers.json` is documented correctly.** It is an array under `servers`, not an object map under `mcpServers`. A file written to the old documentation loaded zero servers, silently.
+- **New: [Capabilities](docs/capabilities.md).** Agents, autopilot, workflows, skills, Skales Local, IQ, Iris, Flow, Buddy, Skales Code, Codework, Obsidian, Teams, Swarm, A2A, WordPress — what they are, where their data lives, and where there is honestly no API to call.
+- **New: `DEVKIT.md`.** The app's Developer → Docs tab renders this file from your devkit folder. The repository never shipped one, so that tab read "not found" for everyone.
+- **The content docs match 12.8.4.** 26 providers instead of 11, 257 tools instead of "60+", Custom Skills instead of "Agent Skills", the retired GitHub integration no longer advertised, dead links removed.
 
 ## What's New in v0.4.0
 
@@ -25,9 +35,10 @@ DevKit **v0.4.0** · requires Skales Desktop **v12.5.2 or later** · verified ag
 - **[API Reference](docs/api-reference.md)** — Full REST API for chat, tools, memory, sessions, and scheduling
 - **[Agent Skills](docs/agent-skills.md)** — Create and share SKILL.md files compatible with Claude Code, Codex, Copilot, and Cursor
 - **[MCP Servers](docs/mcp-servers.md)** — Model Context Protocol setup and templates
-- **[Provider Guides](docs/providers.md)** — Setup for 11+ AI providers (Ollama, LM Studio, OpenRouter, OpenAI, Anthropic, Google, and more)
-- **[Integration Docs](docs/integrations.md)** — Notion, Todoist, Spotify, GitHub, Google Drive, Home Assistant, Telegram, Discord, and more
-- **[Migration Guide](docs/migration.md)** — Import from ChatGPT, Claude, Copilot, Gemini, Hermes, OpenClaw
+- **[Provider Guides](docs/providers.md)** — Setup for all 26 AI providers (Ollama, LM Studio, Skales Local, OpenRouter, OpenAI, Anthropic, Google, and more)
+- **[Integration Docs](docs/integrations.md)** — Notion, Todoist, Spotify, Google Drive, Home Assistant, Telegram, Discord, Obsidian, WordPress, and more
+- **[Migration Guide](docs/migration.md)** — Import from ChatGPT, Claude, GitHub Copilot Chat, Gemini, Cherry Studio, AionUi, Hermes, OpenClaw
+- **[Capabilities](docs/capabilities.md)** — What Skales does beyond the DevKit surface, and how much of it is reachable from outside the app
 - **[Example Skills](examples/skills/)** — Ready-to-use SKILL.md templates
 - **[Architecture Overview](docs/architecture.md)** — How Skales works under the hood
 
@@ -51,7 +62,7 @@ Create a `devkit/` folder in your Skales **data directory** and add a `devkit.js
 ```json
 {
   "enabled": true,
-  "version": "0.3.0",
+  "version": "0.5.0",
   "api": {
     "enabled": true,
     "token": "your-secret-token"
@@ -62,9 +73,17 @@ Create a `devkit/` folder in your Skales **data directory** and add a `devkit.js
 }
 ```
 
-Pick your own value for `token` and keep it private (it authenticates the CLI). Restart Skales; the Developer section appears in the sidebar.
+Pick your own value for `token` and keep it private (it authenticates the CLI). The token must sit at `api.token` — a top-level `token` is not read, and every call then answers 500. Restart Skales; the Developer section appears in the sidebar.
 
 The CLI reads the same file, so the token matches automatically. You can also pass it as `SKALES_DEVKIT_TOKEN` instead of a file.
+
+Copy `DEVKIT.md` into the same folder to fill the app's Developer → Docs tab:
+
+```bash
+cp DEVKIT.md ~/.skales-data/devkit/
+```
+
+The app binds the first free port between 3000 and 3009. If the CLI reaches nothing, set `SKALES_URL` to the port it actually took.
 
 ## CLI
 
@@ -79,12 +98,14 @@ node skales.js model           # Show current model
 node skales.js status          # System status
 node skales.js memory          # Browse memories
 node skales.js sessions        # List chat sessions
-node skales.js migrate --from hermes   # Import from Hermes
 node skales.js mcp                     # List configured MCP servers
 node skales.js mcp test filesystem     # Test an MCP server connection
 node skales.js cron                    # List scheduled tasks
 node skales.js cron add daily "0 9 * * *" "Summarize yesterday's activity"
+node skales.js cron remove <id>        # The id comes from 'cron' or 'cron add'
 ```
+
+`skales migrate --from hermes|openclaw` also exists. It is a local convenience that reads those two tools' files and writes memories and settings straight into the data directory — it is not a front end for the app's importer, and it does not carry over skills or API keys. To import a conversation history, use **Settings → Advanced → Migrate** in the app.
 
 ## Agent Skills (SKILL.md)
 
@@ -108,7 +129,9 @@ Your skill instructions here. The AI agent follows
 these when the skill is active.
 ```
 
-Import in Skales: **Settings → Agent Skills → Import** → paste a GitHub URL or local folder path.
+Import in Skales on the **Custom Skills** page: a GitHub URL, a local folder, or pasted text. Only `name` and `description` are required in the frontmatter — see [agent-skills.md](docs/agent-skills.md) for the fields Skales actually reads.
+
+28 skills ship built in.
 
 ### Skill Sources
 
@@ -127,12 +150,14 @@ Import in Skales: **Settings → Agent Skills → Import** → paste a GitHub UR
 | [Providers](docs/providers.md) | AI provider setup |
 | [Integrations](docs/integrations.md) | Third-party service setup |
 | [Migration](docs/migration.md) | Import from other tools |
+| [Capabilities](docs/capabilities.md) | What the DevKit does not cover, and why |
 | [Architecture](docs/architecture.md) | How Skales works internally |
 
 ## Links
 
 - [Skales App](https://skales.app)
 - [Skales GitHub](https://github.com/skalesapp)
+- [Discussions](https://github.com/skalesapp/skales/discussions)
 - [Discover Feed](https://feed.skales.app)
 
 ## License

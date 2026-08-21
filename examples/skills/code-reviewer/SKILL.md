@@ -1,7 +1,6 @@
 ---
-name: Code Reviewer
+name: code-reviewer
 description: Review code for bugs, performance issues, security vulnerabilities, and best practices
-version: 1.0.0
 ---
 
 # Code Reviewer Skill

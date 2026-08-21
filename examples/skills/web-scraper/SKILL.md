@@ -1,7 +1,6 @@
 ---
-name: Web Scraper
+name: web-scraper
 description: Scrape web pages, extract structured data, and save as JSON or CSV
-version: 1.0.0
 ---
 
 # Web Scraper Skill

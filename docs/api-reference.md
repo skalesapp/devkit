@@ -1,6 +1,6 @@
 # Skales DevKit API Reference
 
-Complete API reference for the Skales DevKit. All endpoints run on a local development server and require authentication.
+Every endpoint below was read out of Skales Desktop 12.8.4 — path, method, request body, and response shape. Where an earlier version of this reference described a different shape, the app's shape is the one documented here.
 
 ## Base URL
 
@@ -8,945 +8,554 @@ Complete API reference for the Skales DevKit. All endpoints run on a local devel
 http://localhost:3000
 ```
 
-You can configure the base URL using the `SKALES_URL` environment variable:
+Skales walks ports **3000 through 3009** and binds the first free one, so a second instance or any other process on 3000 moves the whole API. If a request reaches nothing, check the port first:
+
 ```bash
-export SKALES_URL=http://localhost:5000
+export SKALES_URL=http://localhost:3001
 ```
+
+`SKALES_URL` is what the CLI reads. For curl, substitute the port yourself.
 
 ## Authentication
 
-Send the DevKit token as a Bearer token:
+Every `/api/cli/*` route except `devkit-status` and `devkit-docs` requires the DevKit token as a Bearer header:
 
 ```
-Authorization: Bearer your-devkit-token
+Authorization: Bearer <your devkit token>
 ```
 
-There is no "generate token" button in the app. You choose the value yourself
-and write it into `devkit.json`, which lives in the writable data directory:
+The token is the value you wrote into `api.token` in `~/.skales-data/devkit/devkit.json`. You choose it; nothing in the app generates it. The CLI reads it from `SKALES_DEVKIT_TOKEN` or from the same file — note the `_DEVKIT_` in the middle, `SKALES_TOKEN` is not read anywhere.
 
-```
-~/.skales-data/devkit/devkit.json      (macOS and Linux)
-%USERPROFILE%\.skales-data\devkit\devkit.json   (Windows)
-```
+### Which credential each route accepts
 
-```json
-{
-  "enabled": true,
-  "api": { "enabled": true, "token": "your-devkit-token" }
-}
-```
+| Routes | Accepts |
+|---|---|
+| `chat`, `tools`, `model`, `memory`, `status`, `sessions`, `cron` | **Bearer only.** The DevKit token, nothing else. |
+| the `mcp` family | Bearer **or** a valid `x-skales-token` (the app's own `SKALES_API_TOKEN`). |
+| `devkit-status`, `devkit-docs` | no auth. |
 
-The CLI reads the same value from `SKALES_TOKEN` or from its own config. See
-[getting-started.md](./getting-started.md) for the full file.
+The middleware that guards the rest of the app's API carves `/api/cli/*` out entirely, because an external CLI cannot know `SKALES_API_TOKEN`. That is why these routes carry their own gate — and why `x-skales-token` is validated in the route rather than assumed valid.
 
-`/api/cli/*` is deliberately excluded from the app's own middleware gate,
-because an external CLI cannot know the app's `SKALES_API_TOKEN`. The routes
-authenticate themselves instead, and they accept two credentials:
+### Auth failures
 
-| Header | Who uses it | Checked against |
+| Status | Body | Cause |
 |---|---|---|
-| `Authorization: Bearer <devkit token>` | the CLI and your own scripts | `api.token` in `devkit.json` |
-| `x-skales-token: <api token>` | the Skales renderer, and remote access | the `SKALES_API_TOKEN` environment variable |
-
-Both are compared on the server. Until Desktop v12.5.1 the `x-skales-token`
-branch accepted any non-empty value; if you are running anything older than
-that, update before you expose the app on a network.
-
-Every endpoint also requires DevKit to be enabled (`"enabled": true`), otherwise
-it answers `403 DevKit not enabled`.
-
-**Note**: replace `your-devkit-token` with your actual token in all examples
-below.
+| 403 | `{"error":"DevKit not enabled"}` | No `devkit.json`, or `enabled` is not `true`. |
+| 500 | `{"error":"DevKit token not configured"}` | The file was found but `api.token` is empty or missing — most often a token written at the top level instead of inside `api`. |
+| 401 | `{"error":"Invalid DevKit token"}` | The Bearer token does not match. Compared in constant time. |
 
 ## Error Handling
 
-All endpoints return standard HTTP status codes:
+Errors are JSON with a single `error` string:
 
-| Code | Meaning |
-|------|---------|
-| 200 | Success |
-| 201 | Created |
-| 400 | Bad Request (invalid parameters) |
-| 401 | Unauthorized (invalid/missing token) |
-| 404 | Not Found (resource doesn't exist) |
-| 500 | Server Error |
-
-Error responses include a message:
 ```json
-{
-  "error": "Description of what went wrong"
-}
+{ "error": "id parameter is required" }
 ```
+
+| Status | Meaning |
+|---|---|
+| 400 | Missing or invalid field in the request |
+| 401 / 403 / 500 | See the auth table above |
+| 404 | The named session, memory, task or MCP server does not exist |
+| 405 | Wrong HTTP method for that path — Next.js answers this for any method the route does not export |
+| 500 | Unhandled server-side error, with the message passed through |
 
 ---
 
-## Chat Endpoints
+## Chat
 
 ### POST /api/cli/chat
-Send a message and receive a streaming response via Server-Sent Events (SSE).
 
-**Request:**
+Send a message and stream the answer, with full tool calling.
+
+**Request**
+
+```json
+{ "message": "What's on my calendar today?", "sessionId": "optional-session-id" }
+```
+
+Without `sessionId` a new session titled "CLI Session" is created; its id arrives in the final event.
+
+**Response**: `text/event-stream`.
+
+There are **no `event:` lines**. Every frame is a single `data:` line carrying a JSON object with a `type` field:
+
+```
+data: {"type":"tool_call","tool":"list_calendar_events","args":{"date":"today"}}
+
+data: {"type":"tool_result","tool":"list_calendar_events","result":"3 events"}
+
+data: {"type":"text","content":"You have three events today..."}
+
+data: {"type":"done","sessionId":"session_1755800000000"}
+```
+
+| `type` | Fields | Meaning |
+|---|---|---|
+| `text` | `content` | The assistant's answer. Emitted once, as a whole — this is a streamed transport, not a token-by-token stream. |
+| `tool_call` | `tool`, `args` | The agent is about to run a tool. `tool` is the name, `args` the parsed arguments object. Emitted for the first call of a batch. |
+| `tool_result` | `tool`, `result` | One frame per result. `result` is a display string, truncated to about 200 characters — not the full tool output. |
+| `tool_error` | `tool`, `error` | Tool execution threw. The turn ends after this. |
+| `error` | `error` | The turn failed. |
+| `done` | `sessionId` | Always last. Carries the session id and nothing else — there is no token usage in this stream. |
+
+The fields are `tool`, `args`, `result`. There is no `id` and no `name`.
+
+A turn runs at most 40 orchestrator iterations, with a repeat guard that stops a model looping one identical tool call.
+
+**Example**
+
 ```bash
-curl -X POST http://localhost:3000/api/cli/chat \
-  -H "Authorization: Bearer your-token" \
+curl -N -X POST http://localhost:3000/api/cli/chat \
+  -H "Authorization: Bearer $SKALES_DEVKIT_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "message": "What is the current system status?",
-    "sessionId": "optional-session-id"
-  }'
+  -d '{"message":"What tools do you have?"}'
 ```
 
-**Request Body:**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `message` | string | Yes | The user message to send |
-| `sessionId` | string | No | Session ID to continue a conversation. If omitted, a new session is created |
+Pulling just the text out of the stream:
 
-**Response (Server-Sent Events):**
-
-The response is streamed as multiple SSE events. Each event has a type and data:
-
-```
-event: text
-data: "The current system"
-
-event: text
-data: " status is healthy"
-
-event: tool_call
-data: {"id": "tool_1", "name": "get_status", "args": {}}
-
-event: tool_result
-data: {"id": "tool_1", "result": {"status": "ok"}}
-
-event: text
-data: " with 8 active tools."
-
-event: done
-data: {"sessionId": "session-123", "usage": {"input_tokens": 42, "output_tokens": 120}}
-```
-
-**Event Types:**
-- `text`: Streamed text output from the AI
-- `tool_call`: The AI invoked a tool (includes tool name and arguments)
-- `tool_result`: Result of a tool invocation
-- `done`: Conversation complete (includes final session ID and token usage)
-- `error`: An error occurred during processing
-
-**Example (using curl with line buffering):**
 ```bash
-curl -N http://localhost:3000/api/cli/chat \
-  -H "Authorization: Bearer your-token" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "List my memories"}'
+... | grep '"type":"text"'
 ```
 
 ---
 
-## Tools Endpoints
+## Tools
 
 ### GET /api/cli/tools
-List all available tools that the AI can use.
 
-**Request:**
-```bash
-curl http://localhost:3000/api/cli/tools \
-  -H "Authorization: Bearer your-token"
-```
-
-**Response:**
 ```json
 {
   "tools": [
-    {
-      "name": "list_memories",
-      "description": "List all stored memories",
-      "enabled": true
-    },
-    {
-      "name": "create_memory",
-      "description": "Create a new memory entry",
-      "enabled": true
-    },
-    {
-      "name": "get_status",
-      "description": "Get current system status",
-      "enabled": true
-    }
+    { "name": "web_fetch", "description": "Fetch a URL and return its text", "enabled": true }
   ]
 }
 ```
 
+`enabled` reflects the add-on gating in Settings: a tool whose add-on is switched off is listed but not offered to the model.
+
 ---
 
-## Model Configuration Endpoints
+## Model Configuration
 
 ### GET /api/cli/model
-Get the current AI model provider and model configuration.
 
-**Request:**
-```bash
-curl http://localhost:3000/api/cli/model \
-  -H "Authorization: Bearer your-token"
-```
-
-**Response:**
 ```json
-{
-  "provider": "anthropic",
-  "model": "claude-opus",
-  "baseUrl": "https://api.anthropic.com/v1",
-  "enabled": true
-}
+{ "provider": "anthropic", "model": "claude-sonnet-5", "baseUrl": "", "enabled": true }
 ```
 
-**Fields:**
-| Field | Description |
-|-------|-------------|
-| `provider` | Model provider (e.g., "anthropic", "openai") |
-| `model` | Model name or identifier |
-| `baseUrl` | Base API URL for the provider |
-| `enabled` | Whether this model configuration is active |
-
----
+Values come from `settings.json`: `activeProvider` and that provider's entry. An unconfigured provider reports `"unknown"` as the model.
 
 ### PUT /api/cli/model
-Switch to a different AI model provider or model.
 
-**Request:**
-```bash
-curl -X PUT http://localhost:3000/api/cli/model \
-  -H "Authorization: Bearer your-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "provider": "openai",
-    "model": "gpt-4"
-  }'
-```
-
-**Request Body:**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `provider` | string | Yes | Provider name (e.g., "anthropic", "openai") |
-| `model` | string | Yes | Model identifier for that provider |
-
-**Response:**
 ```json
-{
-  "success": true,
-  "provider": "openai",
-  "model": "gpt-4",
-  "message": "Model configuration updated"
-}
+{ "provider": "openrouter", "model": "openai/gpt-5" }
 ```
+
+```json
+{ "success": true, "provider": "openrouter", "model": "openrouter/model-id" }
+```
+
+There is no `message` field.
+
+| Status | Cause |
+|---|---|
+| 400 `Both provider and model are required` | One of the two is missing |
+| 400 `Unknown provider: <id>` | The provider has no entry in `settings.json`. Configure it once in Settings > Providers; the API will not create it. |
+
+The call sets `activeProvider`, writes the model, and sets that provider's `enabled` to true. The model string is **not** validated against the provider's catalogue.
 
 ---
 
-## Memory Endpoints
+## Memory
 
 ### GET /api/cli/memory
-List all stored memories with their metadata.
 
-**Request:**
-```bash
-curl http://localhost:3000/api/cli/memory \
-  -H "Authorization: Bearer your-token"
-```
-
-**Response:**
 ```json
 {
   "memories": [
     {
-      "id": "mem-001",
-      "category": "preferences",
-      "content": "User prefers concise responses",
-      "extracted_at": "2026-04-02T10:30:00Z",
-      "keywords": ["style", "communication"]
-    },
-    {
-      "id": "mem-002",
-      "category": "facts",
-      "content": "Primary project uses React and Node.js",
-      "extracted_at": "2026-04-02T11:45:00Z",
-      "keywords": ["tech", "stack"]
+      "id": "mem_a1b2c3d4e5f6a7b8",
+      "category": "preference",
+      "content": "Prefers dark mode",
+      "source_conversation_id": "session_1755800000000",
+      "extracted_at": 1755800000000,
+      "relevance_keywords": ["ui", "theme"]
     }
   ],
-  "count": 2
+  "count": 1
 }
 ```
 
----
+`extracted_at` is **epoch milliseconds**, not an ISO string. The keyword field is `relevance_keywords`. Newest first.
 
 ### POST /api/cli/memory
-Create a new memory entry.
 
-**Request:**
-```bash
-curl -X POST http://localhost:3000/api/cli/memory \
-  -H "Authorization: Bearer your-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "User is migrating from Express to Fastify",
-    "category": "facts",
-    "keywords": ["migration", "backend"]
-  }'
-```
-
-**Request Body:**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `content` | string | Yes | The memory content |
-| `category` | string | Yes | Category (e.g., "preferences", "facts", "context") |
-| `keywords` | array | No | Search keywords to tag this memory |
-
-**Response:**
 ```json
-{
-  "id": "mem-003",
-  "category": "facts",
-  "content": "User is migrating from Express to Fastify",
-  "extracted_at": "2026-04-02T12:00:00Z",
-  "keywords": ["migration", "backend"]
-}
+{ "content": "Prefers dark mode", "category": "preference", "keywords": ["ui"] }
 ```
+
+| Field | Required | Notes |
+|---|---|---|
+| `content` | yes | 400 without it |
+| `category` | no | Defaults to `fact`. Any string is accepted; the CLI colours `preference`, `fact`, `action_item`, `contact`, `url`, `location`, `topic`. |
+| `keywords` | no | Array; anything else becomes `[]`. Stored as `relevance_keywords`. |
+
+Response — the memory is **wrapped**:
+
+```json
+{ "success": true, "memory": { "id": "mem_...", "category": "preference", "content": "...", "source_conversation_id": "devkit-cli", "extracted_at": 1755800000000, "relevance_keywords": ["ui"] } }
+```
+
+Memories written this way carry `source_conversation_id: "devkit-cli"`.
+
+### DELETE /api/cli/memory?id=&lt;id&gt;
+
+```json
+{ "success": true, "deleted": "mem_a1b2c3d4e5f6a7b8" }
+```
+
+400 without `id`, 404 `Memory not found` for an unknown one.
 
 ---
 
-### DELETE /api/cli/memory
-Delete a memory by ID.
+## Scheduled Tasks
 
-**Request:**
-```bash
-curl -X DELETE "http://localhost:3000/api/cli/memory?id=mem-001" \
-  -H "Authorization: Bearer your-token"
-```
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `id` | string | Yes | Memory ID to delete |
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Memory deleted"
-}
-```
-
----
-
-## Scheduled Tasks Endpoints
+Skales calls these **cron jobs**. The route family is `/api/cli/cron`.
 
 ### GET /api/cli/cron
-List all scheduled tasks.
 
-**Request:**
-```bash
-curl http://localhost:3000/api/cli/cron \
-  -H "Authorization: Bearer your-token"
-```
-
-**Response:**
 ```json
 {
-  "tasks": [
+  "jobs": [
     {
-      "id": "task-001",
-      "name": "Daily backup",
-      "schedule": "0 2 * * *",
-      "task": "backup_database",
-      "nextRun": "2026-04-03T02:00:00Z",
-      "lastRun": "2026-04-02T02:00:00Z",
-      "enabled": true
-    },
-    {
-      "id": "task-002",
-      "name": "Weekly report",
-      "schedule": "0 9 * * 1",
-      "task": "generate_report",
-      "nextRun": "2026-04-07T09:00:00Z",
-      "enabled": true
+      "id": "1755800000000-a1b2c3d4",
+      "name": "Morning summary",
+      "schedule": "0 9 * * *",
+      "task": "Summarize yesterday's activity",
+      "agent": "researcher",
+      "enabled": true,
+      "createdAt": 1755800000000,
+      "lastRun": 1755886400000,
+      "nextRun": "2026-08-23T09:00:00.000Z",
+      "scheduleHuman": "daily at 9:00"
     }
   ],
-  "count": 2
+  "count": 1
 }
 ```
 
----
+The array is called **`jobs`**, not `tasks`. `nextRun` and `scheduleHuman` are computed per request from the cron expression, so `nextRun` in the response is an ISO string. `createdAt` and `lastRun` are epoch milliseconds. `agent` and `sessionId` appear only on jobs that have them.
 
 ### POST /api/cli/cron
-Create a new scheduled task.
 
-**Request:**
-```bash
-curl -X POST http://localhost:3000/api/cli/cron \
-  -H "Authorization: Bearer your-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Hourly sync",
-    "schedule": "0 * * * *",
-    "task": "sync_data"
-  }'
-```
-
-**Request Body:**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Human-readable task name |
-| `schedule` | string | Yes | Cron expression (5-field format) |
-| `task` | string | Yes | Task identifier or command to execute |
-
-**Response:**
 ```json
-{
-  "id": "task-003",
-  "name": "Hourly sync",
-  "schedule": "0 * * * *",
-  "task": "sync_data",
-  "nextRun": "2026-04-02T14:00:00Z",
-  "enabled": true
-}
+{ "name": "Morning summary", "schedule": "0 9 * * *", "task": "Summarize yesterday's activity" }
 ```
 
-**Cron Format:**
-```
-minute hour dayOfMonth month dayOfWeek
-0      2    *          *     *          (Daily at 2 AM)
-0      9    *          *     1-5        (Weekdays at 9 AM)
-*/15   *    *          *     *          (Every 15 minutes)
-0      0    1          *     *          (First day of month)
-```
+| Field | Required | Notes |
+|---|---|---|
+| `name` | yes | The label shown in the app |
+| `schedule` | yes | 5-field cron: minute hour day month weekday |
+| `task` | yes | What the agent should do |
+| `description` | no | If present it **replaces** `task` in the stored job |
+| `agent` | no | An agent id; the job then runs as that agent |
 
----
-
-### DELETE /api/cli/cron
-Delete a scheduled task.
-
-**Request:**
-```bash
-curl -X DELETE "http://localhost:3000/api/cli/cron?id=task-001" \
-  -H "Authorization: Bearer your-token"
-```
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `id` | string | Yes | Task ID to delete |
-
-**Response:**
 ```json
-{
-  "success": true,
-  "message": "Task deleted"
-}
+{ "success": true, "job": { "id": "1755800000000-a1b2c3d4", "createdAt": 1755800000000, "name": "Morning summary", "schedule": "0 9 * * *", "task": "Summarize yesterday's activity", "enabled": true } }
 ```
 
----
+The `id` is assigned by Skales and returned here. Every other cron endpoint takes that id, not the name.
+
+| Status | Cause |
+|---|---|
+| 400 `name, schedule, and task are required` | A field is missing. This is what you get for sending `{id, schedule, prompt}`. |
+| 400 `Invalid cron expression` | `schedule` did not parse |
+
+Creation de-duplicates: an identical job that already exists is returned instead of a second copy.
+
+### DELETE /api/cli/cron?id=&lt;id&gt;
+
+Deletion lives on the **query form**. `/api/cli/cron/{id}` exports only `PATCH`, so a path-style DELETE answers **405**, not 404.
+
+```json
+{ "success": true }
+```
+
+An unknown id is **200 with `{"success": false}`**, not a 404. Check the flag, not just the status.
 
 ### PATCH /api/cli/cron/{id}
-Toggle a scheduled task's enabled state without deleting it.
 
-**Request:**
-```bash
-curl -X PATCH "http://localhost:3000/api/cli/cron/task-001" \
-  -H "Authorization: Bearer your-token" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled": false}'
-```
-
-**Request Body:**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `enabled` | boolean | Yes | `true` to enable, `false` to pause |
-
-**Response:**
 ```json
-{
-  "id": "task-001",
-  "enabled": false
-}
+{ "enabled": false }
 ```
 
----
+```json
+{ "id": "1755800000000-a1b2c3d4", "enabled": false }
+```
+
+400 without a boolean `enabled`; 404 `No scheduled task with id "..."` for an unknown id. Needs Desktop v12.5.7.
 
 ### POST /api/cli/cron/{id}/run
-Fire a scheduled task immediately, outside its schedule. Useful for testing.
 
-**Request:**
-```bash
-curl -X POST "http://localhost:3000/api/cli/cron/task-001/run" \
-  -H "Authorization: Bearer your-token"
-```
+No body. Fires the task now, outside its schedule, and does not count as the scheduled execution.
 
-**Response:**
 ```json
-{
-  "id": "task-001",
-  "triggered_at": "2026-04-19T18:30:00Z",
-  "status": "queued"
-}
+{ "id": "1755800000000-a1b2c3d4", "triggered_at": "2026-08-22T14:00:00.000Z", "status": "queued", "taskId": "1755886400000-b2c3d4e5" }
 ```
 
-Note: this endpoint, and the `PATCH` above, need Skales Desktop **v12.5.7 or later**. Both have been documented here since v0.2.0 and neither had ever been implemented, so every earlier Desktop version answers 404 and the CLI prints a fallback message.
+`taskId` is present when the run produced a task record. 404 for an unknown id. Needs Desktop v12.5.7.
 
 ---
 
-## System Status Endpoints
+## System Status
 
 ### GET /api/cli/status
-Get the current system status and statistics.
 
-**Request:**
-```bash
-curl http://localhost:3000/api/cli/status \
-  -H "Authorization: Bearer your-token"
-```
+GET only — `POST` answers 405.
 
-**Response:**
 ```json
 {
   "app": "Skales",
-  "version": "10.0.3",
+  "version": "12.8.4",
+  "author": "Mario Simic",
+  "homepage": "https://skales.app",
   "provider": "anthropic",
-  "model": "claude-opus",
-  "memory_count": 15,
-  "session_count": 3,
-  "tools_count": 12,
-  "uptime_ms": 3600000,
-  "devkit_version": "0.3.0"
+  "model": "claude-sonnet-5",
+  "memory_count": 12,
+  "session_count": 34,
+  "tools_count": 0,
+  "uptime_ms": 45000,
+  "devkit_version": "0.5.0",
+  "timestamp": 1755800000000
 }
 ```
 
-**Fields:**
-| Field | Description |
-|-------|-------------|
-| `app` | Application name |
-| `version` | Skales application version |
-| `provider` | Current AI model provider |
-| `model` | Current AI model in use |
-| `memory_count` | Number of stored memories |
-| `session_count` | Number of active sessions |
-| `tools_count` | Number of available tools |
-| `uptime_ms` | Application uptime in milliseconds |
-| `devkit_version` | DevKit version |
+`tools_count` is the length of `capabilities.json` in the data directory — a self-description file, not the tool registry. It reads 0 on installs that have never written one. For the real list, call `GET /api/cli/tools`.
+
+`uptime_ms` is the server process's uptime. `version` is the Skales Desktop version; `devkit_version` is the `version` string out of your `devkit.json`.
 
 ---
 
 ## DevKit Status
 
 ### GET /api/cli/devkit-status
-Returns information about the active DevKit installation: enabled state, version, feature flags, data directory.
 
-**Request:**
-```bash
-curl http://localhost:3000/api/cli/devkit-status \
-  -H "Authorization: Bearer your-token"
-```
+No auth. This is what the sidebar, top navigation and icon rail poll to decide whether to show the Developer section.
 
-**Response:**
 ```json
-{
-  "enabled": true,
-  "devkit_version": "0.3.0",
-  "desktop_version": "10.0.3",
-  "features": {
-    "api": true,
-    "cli": true
-  },
-  "data_dir": "/Users/mario/.skales-data/devkit"
-}
+{ "enabled": true, "version": "0.5.0" }
 ```
 
-**Fields:**
-| Field | Description |
-|-------|-------------|
-| `enabled` | Whether DevKit is active (driven by `devkit.json`) |
-| `devkit_version` | Version from the DevKit `package.json` |
-| `desktop_version` | Running Skales Desktop version |
-| `features` | Per-subsystem toggles from `devkit.json` |
-| `data_dir` | Absolute path to the resolved DevKit data directory |
+When DevKit is off: `{ "enabled": false, "version": null }`. There are no `desktop_version`, `features` or `data_dir` fields.
 
 ---
 
 ## DevKit Docs
 
 ### GET /api/cli/devkit-docs
-Returns the list of bundled documentation files available to the Developer → Docs viewer in the Skales sidebar.
 
-**Request:**
-```bash
-curl http://localhost:3000/api/cli/devkit-docs \
-  -H "Authorization: Bearer your-token"
-```
+No auth, but it does require DevKit to be enabled (403 otherwise).
 
-**Response:**
+It returns the **content** of `DEVKIT.md` from your `devkit/` folder, not a list of documents:
+
 ```json
-{
-  "docs": [
-    { "slug": "getting-started", "title": "Getting Started", "path": "docs/getting-started.md" },
-    { "slug": "api-reference", "title": "API Reference", "path": "docs/api-reference.md" },
-    { "slug": "agent-skills", "title": "Agent Skills", "path": "docs/agent-skills.md" },
-    { "slug": "mcp-servers", "title": "MCP Servers", "path": "docs/mcp-servers.md" },
-    { "slug": "providers", "title": "Providers", "path": "docs/providers.md" },
-    { "slug": "integrations", "title": "Integrations", "path": "docs/integrations.md" },
-    { "slug": "migration", "title": "Migration", "path": "docs/migration.md" },
-    { "slug": "architecture", "title": "Architecture", "path": "docs/architecture.md" }
-  ]
-}
+{ "content": "# Skales DevKit\n\n..." }
 ```
+
+With no `DEVKIT.md` next to your `devkit.json` you get a placeholder string instead, and the Developer > Docs tab shows it. Copy this repository's [`DEVKIT.md`](../DEVKIT.md) into `~/.skales-data/devkit/` to fill the tab.
 
 ---
 
 ## MCP (Model Context Protocol)
 
-Manage MCP server connections from the CLI. See [mcp-servers.md](./mcp-servers.md) for protocol details, transport types, and server templates.
-
-> **Note:** these management endpoints have shipped since Skales Desktop v10.1.0. On anything older they answer 404 and the CLI prints a clear message. Verified against Desktop v12.7.1.
+This family accepts either the DevKit Bearer token or a valid `x-skales-token`.
 
 ### GET /api/cli/mcp
-List currently configured MCP servers with runtime status.
 
-**Request:**
-```bash
-curl http://localhost:3000/api/cli/mcp \
-  -H "Authorization: Bearer your-token"
-```
-
-**Response:**
 ```json
 {
   "servers": [
-    {
-      "name": "filesystem",
-      "transport": "stdio",
-      "status": "connected",
-      "tools": 12,
-      "enabled": true
-    },
-    {
-      "name": "github",
-      "transport": "stdio",
-      "status": "disabled",
-      "tools": 0,
-      "enabled": false
-    }
+    { "name": "filesystem", "transport": "stdio", "status": "connected", "tools": 11, "enabled": true }
   ]
 }
 ```
 
----
-
-### POST /api/cli/mcp/test
-Run a live connection check against a configured MCP server.
-
-**Request:**
-```bash
-curl -X POST http://localhost:3000/api/cli/mcp/test \
-  -H "Authorization: Bearer your-token" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "filesystem"}'
-```
-
-**Response:**
-```json
-{
-  "name": "filesystem",
-  "ok": true,
-  "latency_ms": 42,
-  "tools": 12
-}
-```
-
-On failure the response includes `"ok": false` and an `"error"` field describing the cause.
-
----
+| `status` | Meaning |
+|---|---|
+| `disabled` | `enabled` is false |
+| `connected` | enabled, with a live client in the pool |
+| `stopped` | enabled, no live client — lazy connect has not been triggered, or the client was reaped |
 
 ### POST /api/cli/mcp
-Add or upsert an MCP server configuration.
 
-**Request:**
-```bash
-curl -X POST http://localhost:3000/api/cli/mcp \
-  -H "Authorization: Bearer your-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "notion",
-    "transport": "stdio",
-    "command": "npx",
-    "args": ["-y", "@notionhq/notion-mcp-server"],
-    "env": { "NOTION_TOKEN": "secret_xxx" }
-  }'
-```
+Adds or updates one server. Answers **201**.
 
-**Request Body:**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Unique server identifier |
-| `transport` | string | Yes | `stdio` or `sse` |
-| `command` | string | stdio only | Executable to launch |
-| `args` | array | No | Arguments passed to `command` |
-| `env` | object | No | Environment variables for the child process |
-| `url` | string | sse only | Endpoint URL for SSE transport |
-| `enabled` | boolean | No | Defaults to `true` |
+| Field | Required | Notes |
+|---|---|---|
+| `name` | yes | The identifier; sending the same name again updates that server |
+| `transport` | no | `stdio` (default), `sse`, or `http`. `type` is accepted as an alias. |
+| `command` | for `stdio` | Executable |
+| `args` | no | Array |
+| `env` | no | Object of environment variables |
+| `url` | for `sse`/`http` | Endpoint |
+| `headers` | no | Object of request headers |
+| `enabled` | no | Defaults to true |
 
----
-
-### DELETE /api/cli/mcp/{name}
-Remove an MCP server configuration. The server is stopped if running.
-
-**Request:**
-```bash
-curl -X DELETE "http://localhost:3000/api/cli/mcp/notion" \
-  -H "Authorization: Bearer your-token"
-```
-
-**Response:**
 ```json
-{ "success": true, "name": "notion" }
+{ "success": true, "server": { "name": "filesystem", "type": "stdio", "command": "npx", "args": ["-y","@modelcontextprotocol/server-filesystem","/tmp"], "env": {}, "enabled": true } }
 ```
 
----
+Note the response uses `type` where the request used `transport`. 400 for a missing `name`, an unknown transport, a `stdio` server without `command`, or an `sse`/`http` server without `url`.
+
+The route upserts **one** server per call. `skales mcp add` accepts a file holding a single object, an array, or `{ "servers": [...] }`, and posts each entry in turn.
+
+### POST /api/cli/mcp/test
+
+```json
+{ "name": "filesystem" }
+```
+
+```json
+{ "name": "filesystem", "ok": true, "latency_ms": 142, "tools": 11 }
+```
+
+A failed test is still 200, with `ok: false` and an `error` string.
 
 ### GET /api/cli/mcp/{name}
-Return one server's stored configuration.
 
-```bash
-curl "http://localhost:3000/api/cli/mcp/notion" \
-  -H "Authorization: Bearer your-devkit-token"
-```
-
-**Response:**
 ```json
-{
-  "server": {
-    "name": "notion",
-    "transport": "stdio",
-    "command": "npx",
-    "args": ["-y", "@notionhq/notion-mcp-server"],
-    "enabled": true
-  }
-}
+{ "server": { "name": "github", "type": "stdio", "command": "npx", "args": ["..."], "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..." }, "enabled": true } }
 ```
 
-> The response includes the server's `env` block, which is where API keys for
-> that server live. Treat it as a secret.
+**The response contains the server's `env` block in clear text**, including any API keys stored there. Do not log it or pipe it anywhere shared.
 
----
+### DELETE /api/cli/mcp/{name}
+
+```json
+{ "success": true, "name": "github" }
+```
+
+404 for an unknown name. Log files for the server are removed too.
 
 ### POST /api/cli/mcp/{name}/start
-Start a server and connect it. Populates the connection pool and the tool cache,
-and flips the server's `enabled` flag to true if it was off.
 
-```bash
-curl -X POST "http://localhost:3000/api/cli/mcp/notion/start" \
-  -H "Authorization: Bearer your-devkit-token"
-```
-
-**Response:**
 ```json
-{ "success": true, "name": "notion", "toolCount": 14 }
+{ "success": true, "name": "filesystem", "toolCount": 11 }
 ```
-
-CLI: `skales mcp start notion`
-
----
 
 ### POST /api/cli/mcp/{name}/stop
-Stop a running server and drop its connection.
 
-```bash
-curl -X POST "http://localhost:3000/api/cli/mcp/notion/stop" \
-  -H "Authorization: Bearer your-devkit-token"
-```
-
-**Response:**
 ```json
-{ "success": true, "name": "notion" }
+{ "success": true, "name": "filesystem" }
 ```
 
-CLI: `skales mcp stop notion`
+### GET /api/cli/mcp/{name}/logs?lines=&lt;n&gt;
 
----
+`lines` defaults to 200 and is capped at 1000.
 
-### GET /api/cli/mcp/{name}/logs
-Return recent stdout/stderr lines from the server process.
-
-**Request:**
-```bash
-curl "http://localhost:3000/api/cli/mcp/filesystem/logs?lines=100" \
-  -H "Authorization: Bearer your-token"
-```
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `lines` | number | No | Number of trailing lines to return. Default 100. |
-
-**Response:**
 ```json
-{
-  "name": "filesystem",
-  "lines": [
-    { "stream": "stdout", "t": "2026-04-19T18:30:00Z", "msg": "server ready" },
-    { "stream": "stderr", "t": "2026-04-19T18:30:05Z", "msg": "warn: large file" }
-  ]
-}
+{ "name": "filesystem", "lines": [ { "t": "2026-08-22T14:00:00.000Z", "stream": "stderr", "msg": "server started" } ] }
 ```
 
 ---
 
-## Session Endpoints
+## Sessions
 
 ### GET /api/cli/sessions
-List all chat sessions.
 
-**Request:**
-```bash
-curl http://localhost:3000/api/cli/sessions \
-  -H "Authorization: Bearer your-token"
-```
-
-**Response:**
 ```json
 {
   "sessions": [
     {
-      "id": "session-001",
-      "title": "Debugging API issues",
-      "created_at": "2026-04-02T10:00:00Z",
-      "updated_at": "2026-04-02T11:30:00Z",
-      "message_count": 8
-    },
-    {
-      "id": "session-002",
-      "title": "Project planning",
-      "created_at": "2026-04-01T14:00:00Z",
-      "updated_at": "2026-04-02T09:15:00Z",
-      "message_count": 15
+      "id": "session_1755800000000",
+      "title": "Calendar questions",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "messageCount": 12,
+      "createdAt": 1755800000000,
+      "updatedAt": 1755886400000,
+      "agentId": "researcher"
     }
   ],
-  "count": 2
+  "count": 1
 }
 ```
 
----
+**camelCase, and the timestamps are epoch milliseconds** — not `created_at` / `updated_at` / `message_count`, and not ISO strings. `agentId` appears only on sessions bound to an agent. Newest first by `updatedAt`.
 
-### GET /api/cli/sessions?id=<id>
-Get a specific session with all its messages.
+### GET /api/cli/sessions?id=&lt;id&gt;
 
-**Request:**
-```bash
-curl "http://localhost:3000/api/cli/sessions?id=session-001" \
-  -H "Authorization: Bearer your-token"
-```
+The single session is **wrapped**:
 
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `id` | string | Yes | Session ID to retrieve |
-
-**Response:**
 ```json
-{
-  "id": "session-001",
-  "title": "Debugging API issues",
-  "created_at": "2026-04-02T10:00:00Z",
-  "updated_at": "2026-04-02T11:30:00Z",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Why is the API returning 500 errors?",
-      "timestamp": "2026-04-02T10:00:00Z"
-    },
-    {
-      "role": "assistant",
-      "content": "Let me check the error logs and help diagnose this issue.",
-      "timestamp": "2026-04-02T10:00:30Z"
-    }
-  ],
-  "message_count": 8
-}
+{ "session": { "id": "session_1755800000000", "title": "Calendar questions", "messages": [ { "role": "user", "content": "...", "timestamp": 1755800000000 } ], "createdAt": 1755800000000, "updatedAt": 1755886400000 } }
 ```
 
----
+404 `Session not found` for an unknown id.
 
-### DELETE /api/cli/sessions?id=<id>
-Delete a session and all its messages.
+### DELETE /api/cli/sessions?id=&lt;id&gt;
 
-**Request:**
-```bash
-curl -X DELETE "http://localhost:3000/api/cli/sessions?id=session-001" \
-  -H "Authorization: Bearer your-token"
-```
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `id` | string | Yes | Session ID to delete |
-
-**Response:**
 ```json
-{
-  "success": true,
-  "message": "Session deleted"
-}
+{ "success": true, "deleted": "session_1755800000000" }
 ```
 
 ---
 
-## Complete Example: Building a Chat Application
+## Beyond /api/cli/\*
 
-Here's a complete example of using the DevKit API to build a simple chat interface:
+The seventeen routes above are the DevKit surface. They are not the whole API: Skales Desktop registers roughly a hundred further route groups under `/api/` — agents, autopilot, workflows, skills, custom-skills, skales-local, skales-iq, swarm, codework, ide, flow, studio, buddy, planner, playbooks, browser, wordpress, mcp, a2a, scheduler, and more.
+
+Those groups are **not** DevKit routes and do not accept the DevKit token. They sit behind the app's own middleware gate and expect `SKALES_API_TOKEN` in an `x-skales-token` header — the token from Settings > Security > Remote access. They also have no compatibility promise: they are the app's internal surface and change between releases without notice, which is why they are not documented endpoint-by-endpoint here.
+
+To see what a given build exposes:
+
+```bash
+export SKALES_API_TOKEN=<token from Settings, Security, Remote access>
+curl -s http://localhost:3000/api/health -H "x-skales-token: $SKALES_API_TOKEN"
+```
+
+and read [Capabilities](./capabilities.md) for what each area does, where its data lives, and which of them are reachable at all without the desktop window.
+
+---
+
+## Complete Example
 
 ```bash
 #!/bin/bash
+BASE="${SKALES_URL:-http://localhost:3000}"
+TOKEN="$SKALES_DEVKIT_TOKEN"
+AUTH=(-H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")
 
-TOKEN="your-token"
-BASE_URL="http://localhost:3000"
+# Start a conversation and keep the session id from the done event
+SESSION=$(curl -sN -X POST "$BASE/api/cli/chat" "${AUTH[@]}" \
+  -d '{"message":"Remember that I prefer concise answers."}' \
+  | grep '"type":"done"' | sed 's/.*"sessionId":"\([^"]*\)".*/\1/')
 
-# Create a new session and get the session ID
-SESSION=$(curl -s -X POST $BASE_URL/api/cli/chat \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello"}' | grep -o '"sessionId":"[^"]*' | cut -d'"' -f4)
+# Continue in the same session
+curl -sN -X POST "$BASE/api/cli/chat" "${AUTH[@]}" \
+  -d "{\"message\":\"What did I just tell you?\",\"sessionId\":\"$SESSION\"}" \
+  | grep '"type":"text"'
 
-echo "Created session: $SESSION"
+# Schedule a daily job and keep the id it hands back
+JOB=$(curl -s -X POST "$BASE/api/cli/cron" "${AUTH[@]}" \
+  -d '{"name":"Morning summary","schedule":"0 9 * * *","task":"Summarize yesterday"}' \
+  | sed 's/.*"id":"\([^"]*\)".*/\1/')
 
-# Send another message in the same session
-curl -N -X POST $BASE_URL/api/cli/chat \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"message\": \"What is my current model?\", \"sessionId\": \"$SESSION\"}"
-
-# Check system status
-curl $BASE_URL/api/cli/status \
-  -H "Authorization: Bearer $TOKEN" | jq .
-
-# List all sessions
-curl $BASE_URL/api/cli/sessions \
-  -H "Authorization: Bearer $TOKEN" | jq .
+curl -s -X POST "$BASE/api/cli/cron/$JOB/run" "${AUTH[@]}"
+curl -s "$BASE/api/cli/status" "${AUTH[@]}"
 ```
 
----
+## Performance Notes
 
-## Rate Limiting and Performance
+- No rate limiting. The API is local; the ceiling is your machine and your provider's own limits.
+- `devkit.json` is cached for 10 seconds, so a token change takes up to that long to apply.
+- A chat turn runs up to 40 orchestrator iterations. Long tool chains take as long as the tools do; the CLI's own request timeout is 120 seconds for chat and 30 for everything else.
+- Memories and sessions are one JSON file each, read from disk per request. Thousands of them make the list endpoints proportionally slower.
 
-- No explicit rate limiting is enforced in development mode
-- For production use, implement appropriate rate limiting based on your needs
-- SSE connections remain open until completion; limit concurrent connections as needed
-- Large memory lists (>1000 entries) may impact performance; consider pagination
+## Support
 
----
+- [GitHub Discussions](https://github.com/skalesapp/skales/discussions)
+- [Discover feed](https://feed.skales.app)
 
-## Support and Debugging
-
-For API debugging:
-
-1. Enable detailed logging: Settings → DevKit → Log Level → Debug
-2. Check application logs: `~/.skales-data/logs/`
-3. Use the API Playground in the DevKit UI for interactive testing
-4. Review the Debug Panel for real-time API activity
-
-For additional help, consult the [Getting Started Guide](./getting-started.md) or visit the Skales community forums.
+There is no DevKit log-level setting in the app. To see what a request actually did, use the Debug Panel under Developer, or `skales mcp logs <name>` for MCP servers.

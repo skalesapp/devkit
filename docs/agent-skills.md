@@ -1,6 +1,10 @@
 # Agent Skills
 
-Agent Skills are portable skill definitions that teach the AI assistant new capabilities and behaviors. Skills are written as `SKILL.md` files and can be shared, imported, and managed across different AI tools and environments.
+Agent Skills are portable instruction sets that teach the AI assistant how to do something. They are written as `SKILL.md` files and can be shared and imported across AI tools that support the format.
+
+In the Skales UI this surface is called **Custom Skills** — a page in the sidebar, not a section in Settings. `SKILL.md` skills and executable JavaScript custom skills both live there. This page covers the `SKILL.md` half; the executable half is described in [Capabilities](./capabilities.md).
+
+A skill does not grant tools. It teaches the agent how to use the tools it already has.
 
 ## What Are Agent Skills?
 
@@ -76,15 +80,20 @@ Explain important concepts...
 
 ### Frontmatter Fields
 
+These are the fields Skales actually reads:
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Display name of the skill |
-| `description` | string | Yes | Brief description (one sentence) |
-| `version` | string | Yes | Semantic version (e.g., "1.0.0") |
-| `metadata.author` | string | No | Author name |
-| `metadata.category` | string | No | Skill category (e.g., "development", "devops", "data") |
-| `metadata.tags` | array | No | Search tags for discovery |
-| `metadata.compatible_with` | array | No | List of compatible tools/platforms |
+| `name` | string | Yes | The skill's identifier. Written as a single token with no spaces (`web-development`), because that is what the agent matches on. Falls back to the folder name when absent. |
+| `description` | string | Yes | One sentence. Shown to the model, and shortened to 160 characters when the skill library is large enough to switch to manifest mode. |
+| `disable-model-invocation` | boolean | No | `true` means only a human may invoke this skill by name. It is then never advertised to the model. |
+| `metadata.invocation` | string | No | `user` does the same as the flag above; anything else leaves it model-invocable. |
+| `metadata.category` | string | No | Grouping label |
+| `author`, `source`, `license` | string | No | Attribution, read for the built-in skills |
+
+Anything else in the frontmatter parses without error but is read by nothing. In particular `version` and `metadata.compatible_with` are **not** read: no compatibility is checked, and no version is compared. Keep them if they help humans; do not expect them to do anything.
+
+The frontmatter parser is deliberately small. It handles `key: value` lines and one level of nesting under `metadata:` with two-space indentation. It does not understand YAML lists, block scalars or anchors — write a comma-separated string rather than a list if you want the value to survive.
 
 ### Markdown Body
 
@@ -297,75 +306,89 @@ app.use(cors());
 
 ### Viewing Available Skills
 
-1. Open Skales application
-2. Go to **Settings** → **Agent Skills**
-3. View all installed skills with their descriptions and versions
+1. Open Skales
+2. Go to the **Custom Skills** page in the sidebar
+3. It lists both the 28 built-in skills and everything you imported
+
+There is no "Agent Skills" section in Settings, and the **Add-Ons** page (`/skills`) is a different thing entirely — those are feature switches for surfaces and integrations.
 
 ### Enabling and Disabling Skills
 
-1. Open **Settings** → **Agent Skills**
-2. Toggle the switch next to each skill to enable/disable
-3. Enabled skills are injected into the system prompt automatically
-4. Changes take effect immediately on the next chat message
+1. Open the **Custom Skills** page
+2. Toggle the switch next to a skill
+3. Changes take effect on the next chat message
 
 ### Skill State File
 
 Skales maintains a state file tracking which skills are enabled/disabled:
 
 ```
-~/.skales-data/agent-skills-state.json
+~/.skales-data/agent-skills/agent-skills-state.json
 ```
 
-**Example content:**
+It lives **inside** `agent-skills/`, next to the skill folders, not beside that directory. It is keyed by folder name and holds nothing but the switch:
 
 ```json
 {
-  "web-development": {
-    "enabled": true,
-    "version": "1.0.0"
-  },
-  "data-analysis": {
-    "enabled": false,
-    "version": "2.1.0"
-  },
-  "devops-automation": {
-    "enabled": true,
-    "version": "1.3.2"
-  }
+  "web-development": { "enabled": true },
+  "data-analysis": { "enabled": false }
 }
 ```
+
+The file is **opt-out**: a missing file, or a skill with no entry, means enabled. A fresh install has every built-in skill on. The same file gates built-ins and imports alike.
 
 ---
 
 ## Importing Skills
 
-### From GitHub URL
+The Custom Skills page carries three import tabs — GitHub, folder, and paste — plus a generator.
 
-1. Go to **Settings** → **Agent Skills**
-2. Click **Import Skill**
-3. Enter the GitHub repository URL: `https://github.com/username/skill-repo`
-4. Select the skill to import
-5. Click **Install**
+### From a GitHub URL
 
-Example: `https://github.com/anthropic/skills-library`
+Point it at a repository or a subfolder containing a `SKILL.md`, pick the skill, install.
 
-### From Local Folder
+An import takes the `SKILL.md` plus, at most, **100 files and 2 MB** from `scripts/` and `references/`, one level deep. Nothing else in the repository is copied, and nothing is executed at import time.
 
-1. Create a skill in the correct format locally
-2. Go to **Settings** → **Agent Skills**
-3. Click **Import from Folder**
-4. Browse to select the folder containing `SKILL.md`
-5. Click **Import**
+Example: `https://github.com/anthropics/skills`
 
-The skill will be copied to `~/.skales-data/agent-skills/<skill-name>/`
+### From a Local Folder
 
-### From Community Catalogs
+Select the folder that contains the `SKILL.md`. It is copied to `~/.skales-data/agent-skills/<skill-name>/`; the original is left alone.
 
-Skales includes links to community skill repositories:
+### By Pasting
 
-- **Anthropic Skills Registry**: Official skills from Anthropic
-- **Community Catalog**: Community-contributed skills
-- **GitHub Search**: Search for skills by tag or category on GitHub
+Paste a whole `SKILL.md` into the paste tab. It is validated before it installs: the frontmatter has to open and close, `name` has to be present and free of whitespace, `description` has to be present, and the body has to be non-empty. Up to 48 KB.
+
+### By Generating One
+
+Describe what you want and a model writes the skill. The result runs through the same validator, with retries; a result that stays invalid is reported rather than installed.
+
+### From the Discover Feed
+
+Skills shared to the [Discover feed](https://feed.skales.app) can be forked into your own install with one action.
+
+---
+
+## Built-in Skills
+
+**28 skills ship with Skales.** They live inside the app, are read-only, and are listed on the Custom Skills page alongside your own. They are gated by the same state file, so any of them can be switched off.
+
+A skill you import under the same name as a built-in **replaces** it, compared case-insensitively.
+
+---
+
+## Progressive Disclosure
+
+Skill libraries grow, and a prompt has a budget. Skales handles that in two modes:
+
+- **Under about 12,000 characters** of combined body length across model-invocable skills, every body goes into the prompt in full.
+- **Above it**, the prompt carries a manifest instead — one line per skill, name and a description shortened to 160 characters — plus the full body of any skill the message names.
+
+"Names" means exactly that: the skill's name appears in the message at a word boundary, in its written form, with spaces instead of hyphens, or as `/name`. Substrings do not count, so a skill called `research` is not pulled in by the word "researching".
+
+The agent can also load a body itself with the `read_skill` tool once it has seen the manifest.
+
+Skills marked `disable-model-invocation: true` never appear in the manifest at all. They enter the prompt only when a human names them — which is what you want for a skill that is expensive, dangerous, or only relevant on request.
 
 ---
 
@@ -379,17 +402,7 @@ Agent Skills work across multiple AI tools and platforms:
 - **Cursor**: Full support
 - **Custom Tools**: Can be adapted for any tool supporting SKILL.md
 
-Add compatibility information in the frontmatter:
-
-```yaml
-metadata:
-  compatible_with:
-    - claude-code
-    - codex-cli
-    - copilot
-    - cursor
-    - custom-platform
-```
+The format is what travels, not a declaration: Skales does not read `metadata.compatible_with` and does not check compatibility against anything. A skill is portable because `SKILL.md` is plain Markdown with frontmatter, and it stays portable as long as you keep the body free of assumptions about one particular host.
 
 ---
 
@@ -435,23 +448,9 @@ metadata:
 
 ## Updating and Versioning
 
-Update your skills to keep them current:
+Editing a skill is editing its `SKILL.md`. The change is picked up on the next chat message; nothing needs restarting and nothing needs re-importing on your own machine.
 
-1. Edit the SKILL.md file
-2. Increment the version number following [semantic versioning](https://semver.org/)
-   - MAJOR (1.0.0): Breaking changes
-   - MINOR (1.1.0): New features, backward compatible
-   - PATCH (1.0.1): Bug fixes
-3. Update the modification date in metadata
-4. Re-import or reinstall if sharing with others
-
-**Example version progression:**
-
-```
-1.0.0 → 1.0.1 (bug fix in example code)
-1.0.1 → 1.1.0 (added new section on testing)
-1.1.0 → 2.0.0 (major restructure, breaking changes)
-```
+A `version` field is for the humans reading your repository. Skales does not read it, does not compare it, and will not notice that a newer one exists — an imported skill is a copy, and updating it means importing again. If you publish skills for others, [semantic versioning](https://semver.org/) is still the convention worth following in the file and in your release notes.
 
 ---
 
@@ -482,7 +481,7 @@ Update your skills to keep them current:
 - Check that the YAML frontmatter is valid
 
 **Skills Not Being Used**
-- Check if the skill is enabled in Settings → Agent Skills
+- Check whether the skill is enabled on the Custom Skills page
 - Verify the skill is relevant to your task
 - Try enabling debug logging to see what's injected
 
@@ -532,7 +531,7 @@ You can organize skills by context:
 - **Documentation**: See [getting-started.md](./getting-started.md) for setup
 - **API Reference**: [api-reference.md](./api-reference.md) for integrating skills with APIs
 - **Examples**: Check the Skales Skills Repository for community examples
-- **Community**: Visit [community.skales.app](https://community.skales.app) to discuss skills
+- **Community**: Share skills through the [Discover feed](https://feed.skales.app), or discuss them in [GitHub Discussions](https://github.com/skalesapp/skales/discussions)
 
 ---
 
@@ -541,8 +540,8 @@ You can organize skills by context:
 - Agent Skills teach AI new capabilities using SKILL.md files
 - Store skills in `~/.skales-data/agent-skills/<skill-name>/SKILL.md`
 - Skills work across Claude Code, Codex CLI, Copilot, Cursor, and more
-- Enable/disable skills in Settings → Agent Skills
+- Enable and disable skills on the Custom Skills page
 - Share skills on GitHub or community catalogs
 - Keep skills focused, well-documented, and up-to-date
 
-For more information, visit the [Skales documentation](https://docs.skales.app) or community forums.
+For more information, visit the [Skales documentation](https://docs.skales.app) or [GitHub Discussions](https://github.com/skalesapp/skales/discussions).

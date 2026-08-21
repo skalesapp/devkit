@@ -1,188 +1,192 @@
 # Getting Started with Skales DevKit
 
-Welcome to the Skales DevKit! This guide will help you set up and start using the development tools for the Skales application.
+This guide takes you from a fresh Skales install to a working CLI and a first API call.
 
 ## System Requirements
 
-Before you begin, ensure your system meets these requirements:
-
 - **Operating System**: macOS 11+, Windows 10+, or Linux (Ubuntu 20.04+, Fedora 33+)
-- **Node.js**: Version 18 or higher (required for CLI operations)
-- **Disk Space**: Minimum 500MB for Skales and DevKit
-- **Memory**: 2GB RAM minimum recommended
+- **Skales Desktop**: v12.5.2 or later (scheduled-task pause, resume and run-now need v12.5.7)
+- **Node.js**: 18 or higher, for the CLI
+- **Disk Space**: about 500MB for Skales
 
-You can check your Node.js version with:
+Check your Node.js version:
+
 ```bash
 node --version
 ```
 
-## Installation
+## 1. Install Skales
 
-1. **Download Skales**
-   - Visit [skales.app](https://skales.app) and download the installer for your operating system
-   - Follow the platform-specific installation prompts
+Download the installer for your platform from [skales.app](https://skales.app), run it, and launch the app once so it creates its data directory.
 
-2. **Launch Skales**
-   - Start the Skales application
-   - You should see the main window with the sidebar
+## 2. Enable DevKit
 
-## Enabling Developer Mode
+DevKit is switched on by a single file: `devkit.json` inside a `devkit/` folder in the Skales **data directory**.
 
-1. Place the DevKit folder (containing `devkit.json`) in the Skales installation directory (see the install-path table in the README)
-2. Set `"enabled": true` and your token in `devkit.json`
-3. Restart Skales - the DevKit surfaces (Developer Docs, Debug Panel, API Playground) become available
+| Platform | Path |
+|----------|------|
+| macOS / Linux | `~/.skales-data/devkit/devkit.json` |
+| Windows | `%USERPROFILE%\.skales-data\devkit\devkit.json` |
 
-## Setting Up the DevKit Folder
-
-The DevKit stores its configuration and data in your user directory:
-
-1. Create the DevKit folder:
-   ```bash
-   mkdir -p ~/.skales-data/devkit
-   ```
-
-2. Create a `devkit.json` configuration file in this folder:
-   ```bash
-   ~/.skales-data/devkit/devkit.json
-   ```
-
-3. Add the following configuration:
-   ```json
-   {
-     "enabled": true,
-     "token": "your-devkit-token-here",
-     "features": {
-       "apiPlayground": true,
-       "debugPanel": true,
-       "docs": true,
-       "cliAccess": true
-     }
-   }
-   ```
-
-## DevKit Configuration (devkit.json)
-
-The `devkit.json` file controls how the DevKit behaves:
-
-| Setting | Type | Description |
-|---------|------|-------------|
-| `enabled` | boolean | Enable/disable the entire DevKit |
-| `token` | string | Authentication token for API access (set your own value here; the CLI sends it as a Bearer token) |
-| `features.apiPlayground` | boolean | Enable the interactive API Playground in the UI |
-| `features.debugPanel` | boolean | Enable the Debug Panel for viewing logs and state |
-| `features.docs` | boolean | Enable inline documentation viewer |
-| `features.cliAccess` | boolean | Enable CLI access to DevKit APIs |
-
-## What Appears After Setup
-
-Once enabled, you'll see a new **Developer** section in the sidebar containing:
-
-- **API Playground**: Interactive interface to test API endpoints in real-time
-- **Debug Panel**: View application logs, state changes, and performance metrics
-- **Docs**: Built-in documentation viewer for all DevKit features
-
-## Using the CLI
-
-The Skales DevKit includes a CLI for programmatic access:
-
-1. Navigate to the CLI directory:
-   ```bash
-   cd ~/.skales-data/devkit/cli
-   ```
-
-2. Run the Skales CLI:
-   ```bash
-   node skales.js
-   ```
-
-3. You'll see a prompt where you can enter commands and interact with the DevKit APIs
-
-### CLI Features
-- Send messages to the AI
-- Query available tools
-- Manage memories
-- Create and manage scheduled tasks
-- View system status
-
-## Your First API Call
-
-To make your first API call, you can use curl from the command line:
+The data directory is the only location that works on a normal install: the installer does not ship a `devkit/` folder, and the install directory is read-only. Setting `SKALES_DATA_DIR` moves the whole data directory, and `devkit/` moves with it.
 
 ```bash
-curl -X POST http://localhost:3000/api/cli/status \
-  -H "Authorization: Bearer your-devkit-token" \
-  -H "Content-Type: application/json"
+mkdir -p ~/.skales-data/devkit
 ```
 
-**Expected Response:**
+Then write `~/.skales-data/devkit/devkit.json`:
+
 ```json
 {
-  "app": "Skales",
-  "version": "10.0.3",
-  "provider": "anthropic",
-  "model": "claude-opus",
-  "memory_count": 0,
-  "session_count": 0,
-  "tools_count": 8,
-  "uptime_ms": 45000,
-  "devkit_version": "0.3.0"
+  "enabled": true,
+  "version": "0.5.0",
+  "api": {
+    "enabled": true,
+    "token": "your-secret-token"
+  },
+  "cli": {
+    "enabled": true
+  }
 }
 ```
 
-For more detailed API documentation, see [api-reference.md](./api-reference.md).
+Pick your own value for `token`. It is not generated anywhere in the app — there is no "Generate Token" button — and it is the credential the CLI and every `/api/cli/*` call present as `Authorization: Bearer <token>`. Keep it private and out of version control.
+
+Restart Skales. The **Developer** section appears in the sidebar, the top navigation and the icon rail.
+
+### What the app actually reads
+
+| Key | Read by the app | Effect |
+|-----|-----------------|--------|
+| `enabled` | yes | The whole gate. `false` or a missing file means every `/api/cli/*` route answers **403 DevKit not enabled** and the Developer section stays hidden. |
+| `api.token` | yes | The Bearer token. Missing or empty means **500 DevKit token not configured** — the file exists, so the gate opens, but there is nothing to compare against. |
+| `version` | yes | Reported back by `GET /api/cli/status` (`devkit_version`) and `GET /api/cli/devkit-status`. Cosmetic. |
+| `api.enabled`, `cli.enabled`, `features.*` | no | Part of the config shape, not consulted at runtime. Nothing turns off by setting them to `false`. |
+
+The token lives at `api.token`, **not** at the top level. A top-level `token` is read as "no token configured" and every call answers 500.
+
+`SKALES_DEVKIT=1` in the environment forces `enabled` on for a dev run, but the token still has to come from the file.
+
+## 3. What Appears After Setup
+
+The **Developer** section holds three surfaces:
+
+- **API Playground** — call the DevKit endpoints from inside the app
+- **Debug Panel** — the same memory, session, tool and status readers the REST routes serve, so the two can never disagree
+- **Docs** — renders `DEVKIT.md` from your `devkit/` folder. It is a viewer for a file you supply; with no `DEVKIT.md` next to your `devkit.json` it shows a placeholder. Copying this repository's `DEVKIT.md` there fills it.
+
+## 4. Use the CLI
+
+The CLI is a single zero-dependency file in this repository, `cli/skales.js`. It is not installed into the data directory by anything — run it from your clone.
+
+```bash
+git clone https://github.com/skalesapp/devkit
+cd devkit/cli
+node skales.js status
+```
+
+It finds your token in this order:
+
+1. `SKALES_DEVKIT_TOKEN` (environment)
+2. `SKALES_DEVKIT_CONFIG` (path to a specific `devkit.json`)
+3. `~/.skales-data/devkit/devkit.json` — the same file the app reads
+4. `../devkit.json`, relative to `cli/`, for a dev checkout
+
+The variable is `SKALES_DEVKIT_TOKEN`. `SKALES_TOKEN` is not read by anything.
+
+```bash
+node skales.js chat "summarize my day"   # one-shot message
+node skales.js chat                      # interactive session
+node skales.js tools                     # list the tools the agent can call
+node skales.js cron                      # list scheduled tasks
+```
+
+`node skales.js help` prints the full command list.
+
+## 5. Your First API Call
+
+`GET`, not `POST` — `/api/cli/status` exports only a GET handler and answers 405 to anything else.
+
+```bash
+curl http://localhost:3000/api/cli/status \
+  -H "Authorization: Bearer your-secret-token"
+```
+
+```json
+{
+  "app": "Skales",
+  "version": "12.8.4",
+  "author": "Mario Simic",
+  "homepage": "https://skales.app",
+  "provider": "anthropic",
+  "model": "claude-sonnet-5",
+  "memory_count": 12,
+  "session_count": 34,
+  "tools_count": 0,
+  "uptime_ms": 45000,
+  "devkit_version": "0.5.0",
+  "timestamp": 1755800000000
+}
+```
+
+`tools_count` counts the entries in `capabilities.json` in the data directory, which is a self-description file the app maintains — it is not the number of tools the agent can call. `GET /api/cli/tools` is the honest count.
+
+### The port is not always 3000
+
+Skales walks **3000 to 3009** and binds the first free port, so a second instance or any other process on 3000 moves it. If a call or the CLI reaches nothing, check the port before anything else and point both at the right one:
+
+```bash
+export SKALES_URL=http://localhost:3001
+```
+
+This is the first thing to check, not a footnote.
 
 ## Data Storage
-
-All DevKit data and configuration is stored in your user's home directory:
 
 ```
 ~/.skales-data/
 ├── devkit/
-│   ├── devkit.json          # Configuration file
-│   ├── cli/                 # CLI tools
-│   └── sessions/            # Chat session history
-├── agent-skills/            # Agent skill definitions
+│   ├── devkit.json          # DevKit config and token
+│   └── DEVKIT.md            # optional, rendered by Developer > Docs
+├── settings.json            # provider, model, and app settings
+├── memories/                # one JSON file per memory
+├── sessions/                # one JSON file per chat session
+├── agent-skills/            # custom skills, one folder per skill
+├── agents/                  # agent definitions
 ├── mcp-servers.json         # MCP server configuration
-└── logs/                    # Application logs
+└── cron/                    # scheduled tasks, one JSON file each
 ```
 
-Never commit these directories to version control as they contain sensitive tokens.
+Never commit this directory: it holds your API keys and the DevKit token.
 
 ## Troubleshooting
 
-### DevKit Not Showing in Sidebar
-- **Issue**: Developer section doesn't appear after enabling
-- **Solution**: Restart the Skales application completely (quit and relaunch)
+### The Developer section does not appear
+Quit and relaunch Skales completely. The config is cached for 10 seconds inside a running app, but the sidebar reads its state on navigation, so a full restart is the reliable path. Check that the file is valid JSON — a parse error is silently treated as "no DevKit".
 
-### 401 Unauthorized Errors
-- **Issue**: API calls return 401 errors
-- **Cause**: Invalid or missing token in devkit.json
-- **Solution**:
-  1. Set a new token value in the `token` field of devkit.json
-  2. Use the same token in the CLI (SKALES_TOKEN env or cli config)
-  3. Restart Skales
+### 403 `DevKit not enabled`
+`devkit.json` is missing, is not at `~/.skales-data/devkit/devkit.json`, or does not have `"enabled": true`.
 
-### CLI Cannot Connect
-- **Issue**: "Cannot connect to Skales" error when running skales.js
-- **Cause**: Skales application is not running or listening on port 3000
-- **Solution**:
-  1. Ensure Skales application is running
-  2. Check that no other application is using port 3000
-  3. Try setting the SKALES_URL environment variable: `export SKALES_URL=http://localhost:3000`
+### 500 `DevKit token not configured`
+The file was found but `api.token` is empty or missing. The usual cause is a token written at the top level instead of inside `api`.
 
-### Permission Denied on devkit.json
-- **Issue**: Cannot create or modify devkit.json
-- **Cause**: File permissions issue
-- **Solution**:
-  ```bash
-  chmod 755 ~/.skales-data/devkit
-  chmod 644 ~/.skales-data/devkit/devkit.json
-  ```
+### 401 `Invalid DevKit token`
+The token presented does not match `api.token`. Compare the two, and remember the CLI reads `SKALES_DEVKIT_TOKEN` first — a stale value there wins over the file.
+
+### The CLI cannot connect
+Skales is not running, or it is not on the port you are calling. See "The port is not always 3000" above.
+
+### Permission denied on devkit.json
+```bash
+chmod 755 ~/.skales-data/devkit
+chmod 644 ~/.skales-data/devkit/devkit.json
+```
 
 ## Next Steps
 
-- Read the [API Reference](./api-reference.md) to learn about available endpoints
-- Explore [Agent Skills](./agent-skills.md) for extending AI capabilities
-- Set up [MCP Servers](./mcp-servers.md) to connect external tools and services
+- [API Reference](./api-reference.md) — every endpoint with its real request and response shape
+- [Capabilities](./capabilities.md) — what Skales can do beyond the DevKit surface
+- [Custom Skills](./agent-skills.md) — extend the agent with SKILL.md files
+- [MCP Servers](./mcp-servers.md) — connect external tools
 
-For additional help, visit the [Skales community](https://community.skales.app) or check the built-in documentation in the DevKit Docs viewer.
+Questions and bug reports: [GitHub Discussions](https://github.com/skalesapp/skales/discussions). The [Discover feed](https://feed.skales.app) carries shared skills and workflows.

@@ -26,44 +26,48 @@ This JSON file defines all available MCP servers and their connection settings.
 
 ### Configuration File Format
 
+The top-level key is **`servers`**, and it holds an **array**. It is not an object map, and it is not called `mcpServers`. A file in any other shape parses to zero servers, silently — Skales falls back to an empty list rather than reporting a format error, so a hand-written file in the wrong shape looks like "MCP is broken" rather than "the file is wrong".
+
 ```json
 {
-  "mcpServers": {
-    "github": {
-      "name": "GitHub",
+  "servers": [
+    {
+      "name": "filesystem",
       "type": "stdio",
       "enabled": true,
-      "command": "node",
-      "args": ["/path/to/server/index.js"],
-      "env": {
-        "GITHUB_TOKEN": "your-token"
-      }
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "env": {}
     },
-    "notion": {
-      "name": "Notion",
-      "type": "sse",
+    {
+      "name": "notion",
+      "type": "http",
       "enabled": true,
-      "url": "https://api.notion.com/v1/mcp",
-      "headers": {
-        "Authorization": "Bearer your-token"
-      }
+      "url": "https://mcp.notion.com/mcp",
+      "oauth": true
     }
-  }
+  ]
 }
 ```
+
+`name` is the identifier, not a display label — it is what `skales mcp test <name>` and the tool prefix `mcp_<server>_<tool>` use, so keep it short and stable.
 
 ### Server Configuration Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Display name for the server |
-| `type` | string | Yes | Transport type: `"stdio"` or `"sse"` |
-| `enabled` | boolean | Yes | Enable/disable this server |
-| `command` | string | stdio only | Command to execute (e.g., "node", "python") |
-| `args` | array | stdio only | Command arguments (path to script, flags) |
-| `env` | object | No | Environment variables for the process |
-| `url` | string | sse only | HTTP endpoint for SSE connection |
-| `headers` | object | sse only | HTTP headers (authentication, etc.) |
+| `name` | string | Yes | Identifier for the server; must be unique |
+| `type` | string | Yes | Transport: `"stdio"`, `"sse"`, or `"http"` |
+| `enabled` | boolean | Yes | A disabled server contributes no tools |
+| `command` | string | stdio only | Command to execute (e.g. `npx`, `node`, `python`) |
+| `args` | array | stdio only | Command arguments |
+| `env` | object | No | Environment variables for the child process |
+| `url` | string | sse / http | Endpoint |
+| `headers` | object | No | HTTP headers, for static-token servers |
+| `oauth` | boolean | No | Mark a remote server as OAuth-protected: Skales surfaces a Sign-in affordance and attaches the stored bearer token instead of a static key |
+| `timeoutMs` | number | No | How long a single tool call may run. Default 5 minutes, clamped to 5s–30min. Discovery calls keep their own short timeout regardless. |
+
+Editing the file by hand is supported, but the `skales mcp add` command and the MCP Servers screen in Settings write the same file and validate as they go.
 
 ### Transport Types
 
@@ -75,9 +79,13 @@ Child processes that communicate through stdin/stdout. Good for:
 - Secure, no network exposure
 - File system access servers
 
-**sse (Server-Sent Events)**
+**http (Streamable HTTP)**
 
-HTTP-based connections. Good for:
+The transport of the 2025 MCP spec: a single endpoint, one POST per request, an optional SSE upgrade for server-initiated messages, and session continuity through an `Mcp-Session-Id` header. Prefer this for any remote server that offers it.
+
+**sse (legacy HTTP + SSE)**
+
+The older two-endpoint HTTP transport. Good for:
 - Cloud services (Notion, GitHub, Slack)
 - Remote APIs
 - Services with web endpoints
@@ -95,16 +103,18 @@ Connect to Notion workspaces and access databases and pages.
 
 ```json
 {
-  "notion": {
-    "name": "Notion",
-    "type": "sse",
-    "enabled": false,
-    "url": "https://api.notion.com/v1/mcp",
-    "headers": {
-      "Authorization": "Bearer your-notion-token",
-      "Notion-Version": "2024-02-15"
+  "servers": [
+    {
+        "name": "notion",
+        "type": "sse",
+        "enabled": false,
+        "url": "https://api.notion.com/v1/mcp",
+        "headers": {
+          "Authorization": "Bearer your-notion-token",
+          "Notion-Version": "2024-02-15"
+        }
     }
-  }
+  ]
 }
 ```
 
@@ -128,15 +138,17 @@ Connect to GitHub repositories, manage issues, PRs, and access code.
 
 ```json
 {
-  "github": {
-    "name": "GitHub",
-    "type": "sse",
-    "enabled": false,
-    "url": "https://api.github.com/graphql",
-    "headers": {
-      "Authorization": "Bearer your-github-token"
+  "servers": [
+    {
+        "name": "github",
+        "type": "sse",
+        "enabled": false,
+        "url": "https://api.github.com/graphql",
+        "headers": {
+          "Authorization": "Bearer your-github-token"
+        }
     }
-  }
+  ]
 }
 ```
 
@@ -161,15 +173,17 @@ Access files and folders in Google Drive.
 
 ```json
 {
-  "google-drive": {
-    "name": "Google Drive",
-    "type": "sse",
-    "enabled": false,
-    "url": "https://www.googleapis.com/drive/v3",
-    "headers": {
-      "Authorization": "Bearer your-google-token"
+  "servers": [
+    {
+        "name": "google-drive",
+        "type": "sse",
+        "enabled": false,
+        "url": "https://www.googleapis.com/drive/v3",
+        "headers": {
+          "Authorization": "Bearer your-google-token"
+        }
     }
-  }
+  ]
 }
 ```
 
@@ -195,15 +209,17 @@ Send messages, read channels, and manage Slack workspaces.
 
 ```json
 {
-  "slack": {
-    "name": "Slack",
-    "type": "sse",
-    "enabled": false,
-    "url": "https://slack.com/api",
-    "headers": {
-      "Authorization": "Bearer xoxb-your-bot-token"
+  "servers": [
+    {
+        "name": "slack",
+        "type": "sse",
+        "enabled": false,
+        "url": "https://slack.com/api",
+        "headers": {
+          "Authorization": "Bearer xoxb-your-bot-token"
+        }
     }
-  }
+  ]
 }
 ```
 
@@ -228,16 +244,18 @@ Access local files and directories (sandboxed for security).
 
 ```json
 {
-  "filesystem": {
-    "name": "Local Filesystem",
-    "type": "stdio",
-    "enabled": true,
-    "command": "node",
-    "args": ["/path/to/@modelcontextprotocol/server-filesystem/dist/index.js"],
-    "env": {
-      "ALLOWED_PATHS": "/home/user/projects,/tmp"
+  "servers": [
+    {
+        "name": "filesystem",
+        "type": "stdio",
+        "enabled": true,
+        "command": "node",
+        "args": ["/path/to/@modelcontextprotocol/server-filesystem/dist/index.js"],
+        "env": {
+          "ALLOWED_PATHS": "/home/user/projects,/tmp"
+        }
     }
-  }
+  ]
 }
 ```
 
@@ -297,15 +315,17 @@ app.listen(4000, () => console.log('Server ready'));
 
 ```json
 {
-  "custom-weather": {
-    "name": "Weather API",
-    "type": "sse",
-    "enabled": true,
-    "url": "http://localhost:4000",
-    "headers": {
-      "Authorization": "Bearer your-api-key"
+  "servers": [
+    {
+        "name": "custom-weather",
+        "type": "sse",
+        "enabled": true,
+        "url": "http://localhost:4000",
+        "headers": {
+          "Authorization": "Bearer your-api-key"
+        }
     }
-  }
+  ]
 }
 ```
 
@@ -416,9 +436,9 @@ npm install @modelcontextprotocol/server-filesystem
 
 ```json
 {
-  "mcpServers": {
-    "filesystem": {
-      "name": "Filesystem",
+  "servers": [
+    {
+      "name": "filesystem",
       "type": "stdio",
       "enabled": true,
       "command": "node",
@@ -429,7 +449,7 @@ npm install @modelcontextprotocol/server-filesystem
       ],
       "env": {}
     }
-  }
+  ]
 }
 ```
 
@@ -437,14 +457,18 @@ npm install @modelcontextprotocol/server-filesystem
 
 Edit the args to specify directories that can be accessed:
 
+Every path after the script path is a directory the server may touch:
+
 ```json
 "args": [
   "./node_modules/@modelcontextprotocol/server-filesystem/dist/index.js",
-  "/home/user/projects",      // Allowed path 1
-  "/home/user/documents",     // Allowed path 2
-  "/tmp"                      // Allowed path 3
+  "/home/user/projects",
+  "/home/user/documents",
+  "/tmp"
 ]
 ```
+
+JSON has no comments; the file must parse or Skales loads zero servers.
 
 ### Step 4: Restart Skales
 
@@ -532,9 +556,9 @@ curl -H "Authorization: Bearer token" https://api.example.com/mcp
 **Problem:** Tools don't show up in the Tools list
 
 **Diagnosis:**
-1. Enable debug logging: Settings → DevKit → Log Level → Debug
-2. Check mcp-servers.json syntax (validate JSON)
-3. Verify server is `enabled: true`
+1. Read the server's own output: `skales mcp logs <name>`
+2. Check `mcp-servers.json` syntax — a parse error, or a top-level key other than `servers`, yields zero servers with no message
+3. Verify the server is `enabled: true` and that `skales mcp test <name>` reports `ok`
 
 **Solution:**
 1. Restart Skales application
@@ -576,26 +600,9 @@ curl -H "Authorization: Bearer token" https://api.example.com/mcp
 
 ### Organization
 
-Group related servers logically:
+The file is one flat array; there is no grouping or nesting. Keep servers apart by name instead — a short, stable `name` becomes the tool prefix (`mcp_<server>_<tool>`), so `github` reads better in a tool list than `dev-github-primary`.
 
-```json
-{
-  "mcpServers": {
-    "development": {
-      "github": { ... },
-      "gitlab": { ... }
-    },
-    "productivity": {
-      "notion": { ... },
-      "slack": { ... }
-    },
-    "infrastructure": {
-      "aws": { ... },
-      "kubernetes": { ... }
-    }
-  }
-}
-```
+Servers you are not using should be `"enabled": false` rather than deleted: a disabled server contributes no tools and costs no connection, and its configuration is still there when you want it back.
 
 ### Monitoring
 
@@ -672,37 +679,32 @@ function executeWithRateLimit(tool, params) {
 
 ## Advanced Configuration
 
-### Conditional Server Loading
+### Per-server call timeout
 
-Load servers based on context:
+A single tool call may run for five minutes by default. Servers that legitimately take longer — video analysis, large scrapes, renders — can raise it per server with `timeoutMs`, clamped to between 5 seconds and 30 minutes:
 
 ```json
 {
-  "mcpServers": {
-    "github": {
+  "servers": [
+    {
+      "name": "video-analysis",
+      "type": "stdio",
       "enabled": true,
-      "loadOn": ["code-review", "devops"]
-    },
-    "notion": {
-      "enabled": true,
-      "loadOn": ["documentation", "planning"]
+      "command": "npx",
+      "args": ["-y", "some-video-mcp-server"],
+      "timeoutMs": 900000
     }
-  }
+  ]
 }
 ```
 
-### Server Fallbacks
+Discovery calls (initialize, tools/list) keep their own short timeout regardless: a server that needs minutes to *list* its tools is broken, not busy.
 
-Specify backup servers if primary fails:
+### OAuth servers
 
-```json
-{
-  "github": {
-    "primary": "https://api.github.com",
-    "fallback": "https://backup-api.github.com"
-  }
-}
-```
+Remote servers that sign you in instead of taking a static key are marked `"oauth": true`. Skales then shows a Sign-in affordance for that server and attaches the stored bearer token on every call; you do not put a token in `headers`.
+
+There is no conditional loading, no per-context activation, and no primary/fallback pair. A server is `enabled` or it is not.
 
 ---
 
@@ -716,15 +718,15 @@ Specify backup servers if primary fails:
 For setup help:
 1. Check the [Getting Started Guide](./getting-started.md)
 2. Review the [API Reference](./api-reference.md)
-3. Visit the [Skales community forums](https://community.skales.app)
+3. Ask in [GitHub Discussions](https://github.com/skalesapp/skales/discussions)
 
 ---
 
 ## Key Takeaways
 
 - MCP is an open protocol for connecting AI to external tools
-- Configure servers in `~/.skales-data/mcp-servers.json`
-- Use `stdio` for local servers, `sse` for cloud services
+- Configure servers in `~/.skales-data/mcp-servers.json`, as an array under the key `servers`
+- Use `stdio` for local servers, `http` for modern remote ones, `sse` for older remote ones
 - Tools are auto-discovered and prefixed with `mcp_`
 - Built-in templates for Notion, GitHub, Google Drive, Slack, Filesystem
 - Store credentials in environment variables, not config files
