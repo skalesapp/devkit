@@ -157,6 +157,7 @@ Import in Skales on the **Custom Skills** page: a GitHub URL, a local folder, or
 
 - [Skales App](https://skales.app)
 - [Skales GitHub](https://github.com/skalesapp)
+- [Skales Plugins](https://github.com/skalesapp/plugins) — community plugin registry: list your plugin, or install one from any repository
 - [Discussions](https://github.com/skalesapp/skales/discussions)
 - [Discover Feed](https://feed.skales.app)
 
