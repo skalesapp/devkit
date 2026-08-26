@@ -4,6 +4,18 @@ Developer tools, documentation, and examples for building with [Skales](https://
 
 DevKit **v0.5.0** · requires Skales Desktop **v12.5.2 or later** · verified against **v12.8.4** · Node.js 18+ · MIT License
 
+## Ships inside Skales Desktop
+
+From **Skales Desktop v12.9.10** onwards you do not have to fetch this repository at all: a copy of the DevKit is bundled with the app, and three clicks set it up with a token already filled in.
+
+1. **Settings → Add-Ons → DevKit.** The add-on is off by default, so switch it on. A **Developer** section appears in the sidebar.
+2. **Developer → DevKit.** The page opens with a **Set up DevKit** card.
+3. **Press the button.** The app writes `~/.skales-data/devkit/` out of its own copy — the `cli/` folder, `docs/`, `examples/`, `DEVKIT.md`, `README.md`, `LICENSE`, and a `devkit.json` that is switched on and carries a fresh API token. The card names the exact path it wrote.
+
+Nothing is overwritten. A devkit that is already there is left alone and a token that already exists is never replaced, so pressing the button twice is safe and a program you already handed the token to keeps working. Switching the add-on back off only puts the sidebar section away; the folder stays where it is.
+
+The manual route below still works, and it is the one to use on an older Skales, on a source checkout, or when you want the newest DevKit rather than the one your app version shipped with. The bundled copy is a snapshot of this repository at the app's release, so it can be behind what you are reading here.
+
 ## What's New in v0.5.0
 
 - **Three broken CLI commands work.** `skales cron` read the wrong key and always reported no tasks; `skales cron add` sent the wrong field names and always answered 400; `skales cron remove` never fell back, because the path form answers 405 rather than 404. All three are fixed against the contract the app actually serves.
@@ -45,12 +57,14 @@ DevKit **v0.5.0** · requires Skales Desktop **v12.5.2 or later** · verified ag
 ## Quick Start
 
 1. Download [Skales](https://skales.app). **v12.5.2 or later** is required; scheduled-task pause, resume and run-now need **v12.5.7**.
-2. Put a `devkit/devkit.json` in your Skales data directory (see below)
-3. Restart Skales. The Developer section appears in the sidebar.
+2. On **v12.9.10 or later**: switch DevKit on under Settings → Add-Ons, then press **Set up DevKit** on the Developer → DevKit page. You are done.
+3. On anything older, or by hand: put a `devkit/devkit.json` in your Skales data directory (see below) and restart Skales. The Developer section appears in the sidebar.
 
 See the [Getting Started Guide](docs/getting-started.md) for detailed setup.
 
-## Enable DevKit
+## Enable DevKit by hand
+
+This is the manual route. On Skales Desktop v12.9.10 and later the **Set up DevKit** button writes all of it for you — see [Ships inside Skales Desktop](#ships-inside-skales-desktop) above.
 
 Create a `devkit/` folder in your Skales **data directory** and add a `devkit.json`. The data directory is writable, which the app's install folder is not, so this is the one location that works on a normal install.
 
@@ -73,7 +87,7 @@ Create a `devkit/` folder in your Skales **data directory** and add a `devkit.js
 }
 ```
 
-Pick your own value for `token` and keep it private (it authenticates the CLI). The token must sit at `api.token` — a top-level `token` is not read, and every call then answers 500. Restart Skales; the Developer section appears in the sidebar.
+Pick your own value for `token` and keep it private (it authenticates the CLI). The token must sit at `api.token` — a top-level `token` is not read, and every call then answers 500. Restart Skales; the Developer section appears in the sidebar, once the DevKit add-on is on (v12.9.10 and later: Settings → Add-Ons → DevKit; before that the section needed no add-on).
 
 The CLI reads the same file, so the token matches automatically. You can also pass it as `SKALES_DEVKIT_TOKEN` instead of a file.
 

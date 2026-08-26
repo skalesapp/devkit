@@ -341,7 +341,7 @@ GET only — `POST` answers 405.
 
 ### GET /api/cli/devkit-status
 
-No auth. This is what the sidebar, top navigation and icon rail poll to decide whether to show the Developer section.
+No auth. This is what the sidebar, top navigation and icon rail poll to decide whether to show the API Playground and Debug Panel entries. From v12.9.10 the Developer section itself hangs on the DevKit add-on instead, so this endpoint answering `false` no longer means the section is hidden — the DevKit page stays there to offer the setup.
 
 ```json
 { "enabled": true, "version": "0.5.0" }

@@ -5,6 +5,14 @@ All notable changes to the Skales DevKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## Unreleased
+
+### Changed
+
+- The README documents the bundled path. Skales Desktop v12.9.10 ships a copy of this repository inside the app: switch the DevKit add-on on under Settings → Add-Ons, then press **Set up DevKit** on the Developer → DevKit page, and the app writes `~/.skales-data/devkit/` — CLI, docs, examples and a `devkit.json` with a token already in it. Nothing existing is overwritten. The manual setup stays documented as the route for older versions, for source checkouts, and for running a newer DevKit than the one an app version shipped with.
+- The Developer section is behind an add-on from v12.9.10 on, and the add-on is off by default. Setup instructions that ended at "restart Skales, the Developer section appears" now name that switch first.
+
+
 ## v0.5.0 - 2026-08-22
 
 Audited against Skales Desktop v12.8.4. v0.4.0 checked paths and methods; this

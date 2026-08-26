@@ -21,6 +21,8 @@ Download the installer for your platform from [skales.app](https://skales.app), 
 
 ## 2. Enable DevKit
 
+**On Skales Desktop v12.9.10 or later, skip this section.** The app carries its own copy of the DevKit: switch **DevKit** on under Settings → Add-Ons, open **Developer → DevKit**, and press **Set up DevKit**. It writes everything below for you, token included, and overwrites nothing that is already there. Come back here if you are on an older Skales, are running a source checkout, or want a newer DevKit than the one your app shipped with.
+
 DevKit is switched on by a single file: `devkit.json` inside a `devkit/` folder in the Skales **data directory**.
 
 | Platform | Path |
@@ -162,7 +164,9 @@ Never commit this directory: it holds your API keys and the DevKit token.
 ## Troubleshooting
 
 ### The Developer section does not appear
-Quit and relaunch Skales completely. The config is cached for 10 seconds inside a running app, but the sidebar reads its state on navigation, so a full restart is the reliable path. Check that the file is valid JSON — a parse error is silently treated as "no DevKit".
+On v12.9.10 and later, check the add-on first: Settings → Add-Ons → **DevKit**. It is off by default, and with it off the section is hidden no matter what `devkit.json` says. Switching it back off later never deletes the folder.
+
+Otherwise, quit and relaunch Skales completely. The config is cached for 10 seconds inside a running app, but the sidebar reads its state on navigation, so a full restart is the reliable path. Check that the file is valid JSON — a parse error is silently treated as "no DevKit".
 
 ### 403 `DevKit not enabled`
 `devkit.json` is missing, is not at `~/.skales-data/devkit/devkit.json`, or does not have `"enabled": true`.
