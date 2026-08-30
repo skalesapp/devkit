@@ -4,6 +4,18 @@ Developer tools, documentation, and examples for building with [Skales](https://
 
 DevKit **v0.5.0** · requires Skales Desktop **v12.5.2 or later** · verified against **v12.8.4** · Node.js 18+ · MIT License
 
+## Read this first: the DevKit lives in the app now
+
+The DevKit is shipped **inside Skales Desktop** as an add-on, and the app writes
+it out for you with a working token. That is the route to take. This repository
+is kept readable so existing links and checkouts keep working, but it is no
+longer where the DevKit is developed, and it can be behind the copy in your app.
+
+The CLI installs as **`skales-dev`**. The plain `skales` command belongs to the
+app's own launcher, which opens a folder in Skales Code; this one talks to an
+app that is already running. Invoking it as `node cli/skales.js ...`, which is
+what most of this README does, is unaffected.
+
 ## Ships inside Skales Desktop
 
 From **Skales Desktop v12.9.10** onwards you do not have to fetch this repository at all: a copy of the DevKit is bundled with the app, and three clicks set it up with a token already filled in.

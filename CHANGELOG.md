@@ -9,6 +9,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **The command installs as `skales-dev`, not `skales`.** Skales Desktop's own
+  launcher now takes that name: `skales .` opens a folder in Skales Code and can
+  start the app, while this CLI speaks HTTP to an app that is already running
+  and does nothing without one. Two different tools under one name on the PATH
+  is a coin toss, so the developer tool takes the developer name. Nothing else
+  changed: every subcommand, flag and payload is what it was, and running it as
+  `node cli/skales.js ...` was never affected.
+- **This repository is on its way out.** The DevKit ships inside Skales Desktop
+  as an add-on and is written out with a token already in it, which is the route
+  everybody should now take. The repository stays readable so existing links and
+  checkouts do not break, but it is no longer the place the DevKit is developed.
+
 - The README documents the bundled path. Skales Desktop v12.9.10 ships a copy of this repository inside the app: switch the DevKit add-on on under Settings → Add-Ons, then press **Set up DevKit** on the Developer → DevKit page, and the app writes `~/.skales-data/devkit/` — CLI, docs, examples and a `devkit.json` with a token already in it. Nothing existing is overwritten. The manual setup stays documented as the route for older versions, for source checkouts, and for running a newer DevKit than the one an app version shipped with.
 - The Developer section is behind an add-on from v12.9.10 on, and the add-on is off by default. Setup instructions that ended at "restart Skales, the Developer section appears" now name that switch first.
 

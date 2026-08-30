@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * Skales DevKit CLI — Command-line interface for Skales
+ * Skales DevKit CLI - developer command-line interface for Skales
+ *
+ * Installed as `skales-dev`, not `skales`. The plain name belongs to the app's
+ * own launcher, which opens a folder in Skales Code and can start the app; this
+ * one speaks HTTP to an app that is already running and is useless without it.
+ * Two different tools under one name on the PATH is a coin toss nobody wins.
  *
  * Usage:
  *   node skales.js chat                        Interactive chat
@@ -267,7 +272,7 @@ async function cmdModel(args) {
             }
             console.log(`${C.green}  ✓ Switched to ${data.provider} / ${data.model}${C.reset}`);
         } else {
-            console.error(`${C.red}Usage: skales model <provider> <model>${C.reset}`);
+            console.error(`${C.red}Usage: skales-dev model <provider> <model>${C.reset}`);
         }
     } catch (err) {
         console.error(`${C.red}Error: ${err.message}${C.reset}`);
@@ -713,14 +718,14 @@ async function migrateOpenClaw(homeDir, skalesDataDir, dryRun) {
 function printMcpUsage() {
     console.log(`\n${C.bold}${C.cyan}  MCP (Model Context Protocol)${C.reset}\n`);
     console.log(`  ${C.bold}Usage:${C.reset}`);
-    console.log(`    skales mcp                        ${C.dim}List configured MCP servers${C.reset}`);
-    console.log(`    skales mcp list                   ${C.dim}Same as above${C.reset}`);
-    console.log(`    skales mcp test <name>            ${C.dim}Live connection check${C.reset}`);
-    console.log(`    skales mcp add <config.json>      ${C.dim}Add server from JSON file${C.reset}`);
-    console.log(`    skales mcp remove <name>          ${C.dim}Remove an MCP server${C.reset}`);
-    console.log(`    skales mcp logs <name> [--lines N] ${C.dim}Show recent server logs${C.reset}`);
-    console.log(`    skales mcp start <name>           ${C.dim}Start a server and connect it${C.reset}`);
-    console.log(`    skales mcp stop <name>            ${C.dim}Stop a running server${C.reset}`);
+    console.log(`    skales-dev mcp                        ${C.dim}List configured MCP servers${C.reset}`);
+    console.log(`    skales-dev mcp list                   ${C.dim}Same as above${C.reset}`);
+    console.log(`    skales-dev mcp test <name>            ${C.dim}Live connection check${C.reset}`);
+    console.log(`    skales-dev mcp add <config.json>      ${C.dim}Add server from JSON file${C.reset}`);
+    console.log(`    skales-dev mcp remove <name>          ${C.dim}Remove an MCP server${C.reset}`);
+    console.log(`    skales-dev mcp logs <name> [--lines N] ${C.dim}Show recent server logs${C.reset}`);
+    console.log(`    skales-dev mcp start <name>           ${C.dim}Start a server and connect it${C.reset}`);
+    console.log(`    skales-dev mcp stop <name>            ${C.dim}Stop a running server${C.reset}`);
     console.log();
 }
 
@@ -766,7 +771,7 @@ async function cmdMcp(args) {
         if (sub === 'test') {
             const name = args[1];
             if (!name) {
-                console.error(`${C.red}Usage: skales mcp test <name>${C.reset}\n`);
+                console.error(`${C.red}Usage: skales-dev mcp test <name>${C.reset}\n`);
                 return;
             }
             const { status, data } = await request('POST', '/api/cli/mcp/test', { name });
@@ -786,7 +791,7 @@ async function cmdMcp(args) {
         if (sub === 'add') {
             const configFile = args[1];
             if (!configFile) {
-                console.error(`${C.red}Usage: skales mcp add <config.json>${C.reset}\n`);
+                console.error(`${C.red}Usage: skales-dev mcp add <config.json>${C.reset}\n`);
                 return;
             }
             if (!fs.existsSync(configFile)) {
@@ -822,7 +827,7 @@ async function cmdMcp(args) {
         if (sub === 'remove') {
             const name = args[1];
             if (!name) {
-                console.error(`${C.red}Usage: skales mcp remove <name>${C.reset}\n`);
+                console.error(`${C.red}Usage: skales-dev mcp remove <name>${C.reset}\n`);
                 return;
             }
             const { status, data } = await request('DELETE', `/api/cli/mcp/${encodeURIComponent(name)}`);
@@ -846,7 +851,7 @@ async function cmdMcp(args) {
         if (sub === 'logs') {
             const name = args[1];
             if (!name) {
-                console.error(`${C.red}Usage: skales mcp logs <name> [--lines N]${C.reset}\n`);
+                console.error(`${C.red}Usage: skales-dev mcp logs <name> [--lines N]${C.reset}\n`);
                 return;
             }
             let lines = 100;
@@ -876,7 +881,7 @@ async function cmdMcp(args) {
         if (sub === 'start' || sub === 'stop') {
             const name = args[1];
             if (!name) {
-                console.error(`${C.red}Usage: skales mcp ${sub} <name>${C.reset}\n`);
+                console.error(`${C.red}Usage: skales-dev mcp ${sub} <name>${C.reset}\n`);
                 return;
             }
             const { status, data } = await request('POST', `/api/cli/mcp/${encodeURIComponent(name)}/${sub}`);
@@ -913,20 +918,20 @@ async function cmdMcp(args) {
 function printCronUsage() {
     console.log(`\n${C.bold}${C.cyan}  Scheduled Tasks (cron)${C.reset}\n`);
     console.log(`  ${C.bold}Usage:${C.reset}`);
-    console.log(`    skales cron                               ${C.dim}List scheduled tasks${C.reset}`);
-    console.log(`    skales cron list                          ${C.dim}Same as above${C.reset}`);
-    console.log(`    skales cron add <name> "<schedule>" "<task>"  ${C.dim}Add a task${C.reset}`);
+    console.log(`    skales-dev cron                               ${C.dim}List scheduled tasks${C.reset}`);
+    console.log(`    skales-dev cron list                          ${C.dim}Same as above${C.reset}`);
+    console.log(`    skales-dev cron add <name> "<schedule>" "<task>"  ${C.dim}Add a task${C.reset}`);
     console.log(`      ${C.dim}[--agent <id>]                        Run it as a named agent${C.reset}`);
-    console.log(`    skales cron remove <id>                   ${C.dim}Delete a task by its id${C.reset}`);
-    console.log(`    skales cron enable <id>                   ${C.dim}Enable a task${C.reset}`);
-    console.log(`    skales cron disable <id>                  ${C.dim}Pause a task${C.reset}`);
-    console.log(`    skales cron run <id>                      ${C.dim}Fire a task immediately${C.reset}`);
+    console.log(`    skales-dev cron remove <id>                   ${C.dim}Delete a task by its id${C.reset}`);
+    console.log(`    skales-dev cron enable <id>                   ${C.dim}Enable a task${C.reset}`);
+    console.log(`    skales-dev cron disable <id>                  ${C.dim}Pause a task${C.reset}`);
+    console.log(`    skales-dev cron run <id>                      ${C.dim}Fire a task immediately${C.reset}`);
     console.log();
     console.log(`  ${C.bold}Schedule:${C.reset} 5-field cron (minute hour day month weekday)`);
     console.log(`  ${C.dim}  "0 9 * * *"      daily at 9am${C.reset}`);
     console.log(`  ${C.dim}  "*/15 * * * *"   every 15 minutes${C.reset}`);
     console.log();
-    console.log(`  ${C.dim}The id is assigned by Skales and printed by 'skales cron add' and 'skales cron'.${C.reset}`);
+    console.log(`  ${C.dim}The id is assigned by Skales and printed by 'skales-dev cron add' and 'skales-dev cron'.${C.reset}`);
     console.log(`  ${C.dim}remove / enable / disable / run all take that id, not the name.${C.reset}`);
     console.log();
 }
@@ -958,7 +963,7 @@ async function cmdCron(args) {
             const tasks = (data && (data.jobs || data.tasks)) || [];
             console.log(`\n${C.bold}${C.cyan}  Scheduled Tasks (${tasks.length})${C.reset}\n`);
             if (tasks.length === 0) {
-                console.log(`  ${C.dim}No scheduled tasks. Use 'skales cron add' to create one.${C.reset}\n`);
+                console.log(`  ${C.dim}No scheduled tasks. Use 'skales-dev cron add' to create one.${C.reset}\n`);
                 return;
             }
             for (const t of tasks) {
@@ -989,7 +994,7 @@ async function cmdCron(args) {
             const [name, schedule] = positional;
             const task = positional.slice(2).join(' ');
             if (!name || !schedule || !task) {
-                console.error(`${C.red}Usage: skales cron add <name> "<schedule>" "<task>" [--agent <id>]${C.reset}\n`);
+                console.error(`${C.red}Usage: skales-dev cron add <name> "<schedule>" "<task>" [--agent <id>]${C.reset}\n`);
                 return;
             }
             const body = { name, schedule, task };
@@ -1010,7 +1015,7 @@ async function cmdCron(args) {
         if (sub === 'remove') {
             const id = args[1];
             if (!id) {
-                console.error(`${C.red}Usage: skales cron remove <id>${C.reset}\n`);
+                console.error(`${C.red}Usage: skales-dev cron remove <id>${C.reset}\n`);
                 return;
             }
             // /api/cli/cron/{id} carries no DELETE handler, so Next answers 405
@@ -1027,7 +1032,7 @@ async function cmdCron(args) {
             }
             // A missing id is a 200 with { success: false }, not an error status.
             if (res.data && res.data.success === false) {
-                console.error(`${C.red}  No scheduled task with id "${id}". Run 'skales cron' to see the ids.${C.reset}\n`);
+                console.error(`${C.red}  No scheduled task with id "${id}". Run 'skales-dev cron' to see the ids.${C.reset}\n`);
                 return;
             }
             console.log(`${C.green}  ✓ Removed task: ${id}${C.reset}\n`);
@@ -1037,7 +1042,7 @@ async function cmdCron(args) {
         if (sub === 'enable' || sub === 'disable') {
             const id = args[1];
             if (!id) {
-                console.error(`${C.red}Usage: skales cron ${sub} <id>${C.reset}\n`);
+                console.error(`${C.red}Usage: skales-dev cron ${sub} <id>${C.reset}\n`);
                 return;
             }
             const enabled = sub === 'enable';
@@ -1060,7 +1065,7 @@ async function cmdCron(args) {
         if (sub === 'run') {
             const id = args[1];
             if (!id) {
-                console.error(`${C.red}Usage: skales cron run <id>${C.reset}\n`);
+                console.error(`${C.red}Usage: skales-dev cron run <id>${C.reset}\n`);
                 return;
             }
             const { status, data } = await request('POST', `/api/cli/cron/${encodeURIComponent(id)}/run`);

@@ -1,10 +1,10 @@
 {
   "name": "@skalesapp/devkit-cli",
   "version": "0.5.0",
-  "description": "Standalone CLI for Skales. Zero dependencies.",
+  "description": "Standalone developer CLI for Skales. Zero dependencies.",
   "main": "skales.js",
   "bin": {
-    "skales": "./skales.js"
+    "skales-dev": "./skales.js"
   },
   "type": "commonjs",
   "engines": {
