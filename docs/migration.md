@@ -1,3 +1,10 @@
+---
+summary: Every conversation-history source the importer supports, what it writes, and what it deliberately does not import.
+read_when:
+  - a user wants to bring history in from another AI tool
+  - an import produced less than expected and you need to know whether that is by design
+---
+
 # Data Migration Guide
 
 Skales can import conversation history from other AI tools. This guide covers

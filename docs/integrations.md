@@ -1,3 +1,10 @@
+---
+summary: How Skales connects to external services and to the local machine, and which add-ons gate each integration card.
+read_when:
+  - an integration card is missing or its tools are not offered to the model
+  - you are adding an integration and need where it is configured and how it is gated
+---
+
 # Integrations Setup Guide
 
 Skales connects to external services and to your own machine. Most of it is

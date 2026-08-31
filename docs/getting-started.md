@@ -1,3 +1,10 @@
+---
+summary: The path from a fresh Skales install to a working CLI and a first successful API call.
+read_when:
+  - a developer is setting up the DevKit for the first time
+  - you need the system requirements or the minimum Skales version for a DevKit feature
+---
+
 # Getting Started with Skales DevKit
 
 This guide takes you from a fresh Skales install to a working CLI and a first API call.

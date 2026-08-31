@@ -1,3 +1,10 @@
+---
+summary: "The high-level shape of Skales: technology stack, process boundaries, data flow and the major subsystems."
+read_when:
+  - you are new to the codebase and need the map before opening files
+  - you are placing a new subsystem and need to know which layer owns what
+---
+
 # Architecture Overview
 
 This document describes the high-level architecture of Skales, including the technology stack, data flow, and major subsystems.

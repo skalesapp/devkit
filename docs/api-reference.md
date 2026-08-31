@@ -1,3 +1,10 @@
+---
+summary: Every /api/cli endpoint with its method, request body and response shape, read out of the shipping app.
+read_when:
+  - you are calling a DevKit endpoint and need its exact request or response shape
+  - you changed a CLI route and must keep the reference honest against the code
+---
+
 # Skales DevKit API Reference
 
 Every endpoint below was read out of Skales Desktop 12.8.4 — path, method, request body, and response shape. Where an earlier version of this reference described a different shape, the app's shape is the one documented here.

@@ -1,3 +1,10 @@
+---
+summary: All shipped AI providers with their provider IDs, labels and setup steps under Settings to Providers.
+read_when:
+  - you are adding or renaming a provider and need the ID and registration conventions
+  - a user cannot get a specific provider to authenticate or appear in the list
+---
+
 # AI Provider Setup Guide
 
 Skales ships 26 AI providers. Configure them in **Settings → Providers**.

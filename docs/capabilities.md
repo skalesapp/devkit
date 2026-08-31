@@ -1,3 +1,10 @@
+---
+summary: The honest map of what Skales Desktop can do, where each area's data lives, and which areas have no HTTP route at all.
+read_when:
+  - you need to know whether a Skales area is reachable over HTTP or only from its own window
+  - you are answering what Skales can do and must not overstate the API surface
+---
+
 # Capabilities
 
 The DevKit's seventeen `/api/cli/*` routes cover chat, tools, memory, sessions, models, scheduling and MCP. Skales Desktop 12.8.4 does considerably more than that, and until now none of it was written down here. This page is the honest map: what each area is, where its data lives, how you reach it, and — where that is the answer — that you cannot reach it over HTTP at all.

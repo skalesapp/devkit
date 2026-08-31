@@ -1,3 +1,10 @@
+---
+summary: "MCP support in Skales: what the protocol is, how servers are configured, and how their tools reach the agent."
+read_when:
+  - you are connecting an MCP server or debugging one whose tools never appear
+  - you need the Skales-side configuration shape for an MCP server
+---
+
 # MCP (Model Context Protocol) Servers
 
 The Model Context Protocol (MCP) is an open standard for connecting AI assistants to external tools, services, and data sources. Skales DevKit includes full MCP support for extending AI capabilities beyond built-in tools.

@@ -1,3 +1,10 @@
+---
+summary: "How SKILL.md agent skills work in Skales: the format, where they live in the UI, and what a skill can and cannot grant."
+read_when:
+  - you are writing or debugging a SKILL.md and need the frontmatter and loading rules
+  - someone expects a skill to grant a tool and it does not
+---
+
 # Agent Skills
 
 Agent Skills are portable instruction sets that teach the AI assistant how to do something. They are written as `SKILL.md` files and can be shared and imported across AI tools that support the format.

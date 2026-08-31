@@ -1,3 +1,10 @@
+---
+summary: "The single file the in-app Developer to Docs tab renders: enabling DevKit, the token, and the CLI in one page."
+read_when:
+  - you are changing what the in-app DevKit docs tab shows
+  - a developer needs the shortest path from a fresh install to a working DevKit token
+---
+
 # Skales DevKit
 
 This file is what **Developer → Docs** renders inside Skales. Copy it next to your `devkit.json`:

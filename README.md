@@ -1,3 +1,10 @@
+---
+summary: "The DevKit front page: that the DevKit now ships inside the app, its version floor, and how to get the CLI."
+read_when:
+  - a developer asks where the DevKit lives or which Skales version they need
+  - you are updating the DevKit version floor or the skales-dev CLI naming
+---
+
 # Skales DevKit
 
 Developer tools, documentation, and examples for building with [Skales](https://skales.app), the local-first AI desktop agent.
