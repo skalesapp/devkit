@@ -415,7 +415,7 @@ Adds or updates one server. Answers **201**.
 
 Note the response uses `type` where the request used `transport`. 400 for a missing `name`, an unknown transport, a `stdio` server without `command`, or an `sse`/`http` server without `url`.
 
-The route upserts **one** server per call. `skales mcp add` accepts a file holding a single object, an array, or `{ "servers": [...] }`, and posts each entry in turn.
+The route upserts **one** server per call. `skales-dev mcp add` accepts a file holding a single object, an array, or `{ "servers": [...] }`, and posts each entry in turn.
 
 ### POST /api/cli/mcp/test
 
@@ -565,4 +565,4 @@ curl -s "$BASE/api/cli/status" "${AUTH[@]}"
 - [GitHub Discussions](https://github.com/skalesapp/skales/discussions)
 - [Discover feed](https://feed.skales.app)
 
-There is no DevKit log-level setting in the app. To see what a request actually did, use the Debug Panel under Developer, or `skales mcp logs <name>` for MCP servers.
+There is no DevKit log-level setting in the app. To see what a request actually did, use the Debug Panel under Developer, or `skales-dev mcp logs <name>` for MCP servers.

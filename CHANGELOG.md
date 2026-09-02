@@ -33,11 +33,11 @@ gap, and the setup guide produced a config file the app could not read.
 
 ### Fixed
 
-- `skales cron` listed nothing, ever. It read `data.tasks`; the route answers `{ jobs, count }`. It now reads `jobs`, prints the id each subcommand needs, and shows the human-readable schedule the route sends along.
-- `skales cron add` always answered 400. It sent `{id, schedule, prompt}`; the route requires `{name, schedule, task}`. The command is now `skales cron add <name> "<schedule>" "<task>"`, takes an optional `--agent <id>`, and prints the id Skales assigned.
-- `skales cron remove` always failed with "Unknown error". `/api/cli/cron/{id}` carries no DELETE handler, so Next answers 405, not 404, and the fallback to the query form never fired. It now falls through on 405 as well, and reports an unknown id honestly instead of claiming success — deletion answers 200 with `success: false` when nothing matched.
-- `skales cron enable`, `disable` and `run` claimed Desktop did not support them. They have shipped since v12.5.7; a 404 from these routes now means the id does not exist, and the message says so.
-- `skales mcp add` refused the `examples/mcp/example-server.json` shipped in this repository, because the file is an array and the route upserts one server per call. The command now accepts a single object, an array, or `{ "servers": [...] }`.
+- `skales-dev cron` listed nothing, ever. It read `data.tasks`; the route answers `{ jobs, count }`. It now reads `jobs`, prints the id each subcommand needs, and shows the human-readable schedule the route sends along.
+- `skales-dev cron add` always answered 400. It sent `{id, schedule, prompt}`; the route requires `{name, schedule, task}`. The command is now `skales-dev cron add <name> "<schedule>" "<task>"`, takes an optional `--agent <id>`, and prints the id Skales assigned.
+- `skales-dev cron remove` always failed with "Unknown error". `/api/cli/cron/{id}` carries no DELETE handler, so Next answers 405, not 404, and the fallback to the query form never fired. It now falls through on 405 as well, and reports an unknown id honestly instead of claiming success — deletion answers 200 with `success: false` when nothing matched.
+- `skales-dev cron enable`, `disable` and `run` claimed Desktop did not support them. They have shipped since v12.5.7; a 404 from these routes now means the id does not exist, and the message says so.
+- `skales-dev mcp add` refused the `examples/mcp/example-server.json` shipped in this repository, because the file is an array and the route upserts one server per call. The command now accepts a single object, an array, or `{ "servers": [...] }`.
 - `getting-started.md` produced a `devkit.json` with `token` at the top level and a `features` block the app does not read. The app reads `api.token`; a top-level token means every call answers 500. The guide now documents what the app actually reads and what it ignores.
 - `SKALES_TOKEN` appeared in the docs and both example scripts. The CLI reads `SKALES_DEVKIT_TOKEN`; nothing reads `SKALES_TOKEN`.
 - `mcp-servers.md` documented `~/.skales-data/mcp-servers.json` as an object map under `mcpServers`. Skales reads an **array** under `servers`, and falls back to an empty list without complaint — a file written to the old documentation loaded zero servers. Every example in that page is corrected, and the invented `loadOn`, nested-group and primary/fallback shapes are gone.
@@ -77,7 +77,7 @@ against the routes the app actually registers.
 
 ### Added
 
-- `skales mcp start <name>` and `skales mcp stop <name>`. `POST /api/cli/mcp/{name}/start` and `/stop` have been in Desktop since v10.1.0, but no CLI command called them and the API reference did not list them.
+- `skales-dev mcp start <name>` and `skales-dev mcp stop <name>`. `POST /api/cli/mcp/{name}/start` and `/stop` have been in Desktop since v10.1.0, but no CLI command called them and the API reference did not list them.
 - `GET /api/cli/mcp/{name}` documented, with a note that the response includes the server's `env` block and should be treated as a secret.
 
 ### Fixed
@@ -140,7 +140,7 @@ Aligned with Skales Desktop v10.1.0 "Design" release. No new CLI commands or bre
 ## v0.2.0 — Initial DevKit Release
 
 - CLI MCP commands (list, test, add, remove, logs).
-- CLI Scheduled Tasks via `skales cron` subcommands.
+- CLI Scheduled Tasks via `skales-dev cron` subcommands.
 - License changed to MIT.
 - Desktop compatibility pinned to v10.0.3+.
 - API reference expanded for MCP, DevKit status, DevKit docs, and Scheduled Task control endpoints.

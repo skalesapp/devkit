@@ -37,7 +37,7 @@ The manual route below still works, and it is the one to use on an older Skales,
 
 ## What's New in v0.5.0
 
-- **Three broken CLI commands work.** `skales cron` read the wrong key and always reported no tasks; `skales cron add` sent the wrong field names and always answered 400; `skales cron remove` never fell back, because the path form answers 405 rather than 404. All three are fixed against the contract the app actually serves.
+- **Three broken CLI commands work.** `skales-dev cron` read the wrong key and always reported no tasks; `skales-dev cron add` sent the wrong field names and always answered 400; `skales-dev cron remove` never fell back, because the path form answers 405 rather than 404. All three are fixed against the contract the app actually serves.
 - **The setup guide no longer produces an unreadable config.** It told you to put `token` at the top level of `devkit.json`. The app reads `api.token`, so every call answered 500.
 - **The API reference describes the real payloads.** v0.4.0 verified that every path and method existed. It did not verify what came back — and chat SSE, sessions, memory, cron, `devkit-status` and `devkit-docs` were all documented in shapes the app has never sent.
 - **`mcp-servers.json` is documented correctly.** It is an array under `servers`, not an object map under `mcpServers`. A file written to the old documentation loaded zero servers, silently.
@@ -47,7 +47,7 @@ The manual route below still works, and it is the one to use on an older Skales,
 
 ## What's New in v0.4.0
 
-- **`skales mcp start <name>` and `skales mcp stop <name>`.** Both endpoints have existed in Desktop since v10.1.0; the CLI never called them and the API reference never listed them.
+- **`skales-dev mcp start <name>` and `skales-dev mcp stop <name>`.** Both endpoints have existed in Desktop since v10.1.0; the CLI never called them and the API reference never listed them.
 - **The API reference tells the truth about tokens.** It used to send you to a "Settings, DevKit, Generate Token" button that does not exist. The token is a value you choose and write into `devkit.json`, and the reference now says so, names both credentials `/api/cli/*` accepts, and explains why that route is outside the app's middleware gate.
 - **`GET /api/cli/mcp/{name}` is documented**, including the warning that its response carries the server's `env` block.
 - **The stale "MCP endpoints are forward-looking" note is gone.** They ship since Desktop v10.1.0.
@@ -138,7 +138,7 @@ node skales.js cron add daily "0 9 * * *" "Summarize yesterday's activity"
 node skales.js cron remove <id>        # The id comes from 'cron' or 'cron add'
 ```
 
-`skales migrate --from hermes|openclaw` also exists. It is a local convenience that reads those two tools' files and writes memories and settings straight into the data directory — it is not a front end for the app's importer, and it does not carry over skills or API keys. To import a conversation history, use **Settings → Advanced → Migrate** in the app.
+`skales-dev migrate --from hermes|openclaw` also exists. It is a local convenience that reads those two tools' files and writes memories and settings straight into the data directory — it is not a front end for the app's importer, and it does not carry over skills or API keys. To import a conversation history, use **Settings → Advanced → Migrate** in the app.
 
 ## Agent Skills (SKILL.md)
 

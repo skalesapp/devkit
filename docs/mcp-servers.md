@@ -57,7 +57,7 @@ The top-level key is **`servers`**, and it holds an **array**. It is not an obje
 }
 ```
 
-`name` is the identifier, not a display label — it is what `skales mcp test <name>` and the tool prefix `mcp_<server>_<tool>` use, so keep it short and stable.
+`name` is the identifier, not a display label — it is what `skales-dev mcp test <name>` and the tool prefix `mcp_<server>_<tool>` use, so keep it short and stable.
 
 ### Server Configuration Fields
 
@@ -74,7 +74,7 @@ The top-level key is **`servers`**, and it holds an **array**. It is not an obje
 | `oauth` | boolean | No | Mark a remote server as OAuth-protected: Skales surfaces a Sign-in affordance and attaches the stored bearer token instead of a static key |
 | `timeoutMs` | number | No | How long a single tool call may run. Default 5 minutes, clamped to 5s–30min. Discovery calls keep their own short timeout regardless. |
 
-Editing the file by hand is supported, but the `skales mcp add` command and the MCP Servers screen in Settings write the same file and validate as they go.
+Editing the file by hand is supported, but the `skales-dev mcp add` command and the MCP Servers screen in Settings write the same file and validate as they go.
 
 ### Transport Types
 
@@ -563,9 +563,9 @@ curl -H "Authorization: Bearer token" https://api.example.com/mcp
 **Problem:** Tools don't show up in the Tools list
 
 **Diagnosis:**
-1. Read the server's own output: `skales mcp logs <name>`
+1. Read the server's own output: `skales-dev mcp logs <name>`
 2. Check `mcp-servers.json` syntax — a parse error, or a top-level key other than `servers`, yields zero servers with no message
-3. Verify the server is `enabled: true` and that `skales mcp test <name>` reports `ok`
+3. Verify the server is `enabled: true` and that `skales-dev mcp test <name>` reports `ok`
 
 **Solution:**
 1. Restart Skales application

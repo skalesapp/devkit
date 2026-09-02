@@ -238,7 +238,7 @@ Generic JSON**.
 
 ---
 
-## The `skales migrate` CLI command
+## The `skales-dev migrate` CLI command
 
 The devkit CLI has a separate, narrower migration command:
 
