@@ -2,7 +2,7 @@
 
 Developer tools, documentation, and examples for building with [Skales](https://skales.app), the local-first AI desktop agent.
 
-DevKit **v0.5.0** · requires Skales Desktop **v12.5.2 or later** · verified against **v12.8.4** · Node.js 18+ · MIT License
+DevKit **v0.5.0** · requires Skales Desktop **v12.5.2 or later** · verified against the [current release](https://github.com/skalesapp/skales/releases/latest) · Node.js 18+ · MIT License
 
 ## Read this first: the DevKit lives in the app now
 
@@ -191,6 +191,6 @@ Import in Skales on the **Custom Skills** page: a GitHub URL, a local folder, or
 
 MIT. See [LICENSE](LICENSE) for the full text.
 
-Skales Desktop itself is BSL-1.1 (converts to Apache 2.0 in 2030). The DevKit is MIT so integrations, forks, and commercial work built on top have maximum freedom.
+Skales Desktop itself is proprietary, under the [Skales End User Licence Agreement](https://skales.app/licence). Private individuals, students and teachers use it free of charge; commercial use needs a licence (request@skales.app). The DevKit is MIT so integrations and commercial work built on top have maximum freedom.
 
 Built by [Mario Simic](https://github.com/skalesapp), Vienna.
